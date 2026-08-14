@@ -73,6 +73,7 @@
     </main>
 
     <!-- JS Logic integration -->
+    <!-- JS Logic integration -->
     <script>
         const API_BASE = '/api/admin';
         // Simpan JWT admin di localStorage saat login
@@ -91,20 +92,23 @@
                 const tbody = document.getElementById('payment-table-body');
                 tbody.innerHTML = '';
 
-                if(!json.data || json.data.length === 0) {
+                // PERBAIKAN: Memastikan data terbaca meski format backend berbeda
+                const pendingData = json.data || json || [];
+
+                if(pendingData.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Tidak ada antrean pembayaran.</td></tr>';
                     return;
                 }
 
-                json.data.forEach(item => {
+                pendingData.forEach(item => {
                     tbody.innerHTML += `
                         <tr class="hover:bg-slate-50">
-                            <td class="p-3 font-semibold">${item.userId?.nama || 'N/A'}<br><span class="text-xs text-slate-400 font-normal">${item.userId?.email}</span></td>
-                            <td class="p-3"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-semibold">${item.paketDipilih}</span></td>
+                            <td class="p-3 font-semibold">${item.userId?.nama || 'N/A'}<br><span class="text-xs text-slate-400 font-normal">${item.userId?.email || ''}</span></td>
+                            <td class="p-3"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-semibold">${item.paketDipilih || '-'}</span></td>
                             <td class="p-3">
-                                <a href="${item.buktiPembayaran}" target="_blank" class="text-blue-600 underline text-xs">Lihat Bukti</a>
+                                <a href="http://localhost:5000${item.buktiPembayaran}" target="_blank" class="text-blue-600 underline text-xs">Lihat Bukti</a>
                             </td>
-                            <td class="p-3 text-xs text-slate-500">${new Date(item.createdAt).toLocaleDateString('id-ID')}</td>
+                            <td class="p-3 text-xs text-slate-500">${item.createdAt ? new Date(item.createdAt).toLocaleDateString('id-ID') : '-'}</td>
                             <td class="p-3 text-center space-x-2">
                                 <button onclick="approvePayment('${item._id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-md font-medium">Setujui</button>
                                 <button onclick="rejectPayment('${item._id}')" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-3 py-1.5 rounded-md font-medium">Tolak</button>
@@ -112,7 +116,10 @@
                         </tr>
                     `;
                 });
-            } catch (err) { console.error(err); }
+            } catch (err) { 
+                console.error("Gagal memuat antrean:", err); 
+                document.getElementById('payment-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-rose-500">Gagal memuat data antrean.</td></tr>';
+            }
         }
 
         // 2. Fetch Users Data
@@ -123,16 +130,31 @@
                 const tbody = document.getElementById('user-table-body');
                 tbody.innerHTML = '';
 
-                json.data.forEach(user => {
+                // PERBAIKAN: Menghindari error "forEach is not a function" jika data kosong
+                const userData = json.data || json || [];
+
+                if(userData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Belum ada data pengguna.</td></tr>';
+                    return;
+                }
+
+                userData.forEach(user => {
                     const isPro = user.statusAkun === 'Pro';
+                    const isDitolak = user.statusAkun === 'Ditolak'; 
+                    
+                    // PERBAIKAN: Menambahkan logic warna merah untuk "Ditolak" dan memunculkan text alasannya
+                    const statusClass = isPro ? 'bg-emerald-100 text-emerald-700' : isDitolak ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600';
+                    const alasanText = (isDitolak && (user.catatanAdmin || user.alasanPenolakan)) ? `<div class="text-[10px] text-rose-500 mt-1 font-medium">Alasan: ${user.catatanAdmin || user.alasanPenolakan}</div>` : '';
+
                     tbody.innerHTML += `
                         <tr class="hover:bg-slate-50">
-                            <td class="p-3 font-medium">${user.nama}</td>
-                            <td class="p-3 text-slate-500">${user.email}</td>
+                            <td class="p-3 font-medium">${user.nama || 'N/A'}</td>
+                            <td class="p-3 text-slate-500">${user.email || 'N/A'}</td>
                             <td class="p-3">
-                                <span class="${isPro ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'} px-2.5 py-0.5 rounded-full text-xs font-bold">
-                                    ${user.statusAkun}
+                                <span class="${statusClass} px-2.5 py-0.5 rounded-full text-xs font-bold">
+                                    ${user.statusAkun || 'Free'}
                                 </span>
+                                ${alasanText}
                             </td>
                             <td class="p-3 text-xs text-slate-500">${user.berlakuHingga ? new Date(user.berlakuHingga).toLocaleDateString('id-ID') : '-'}</td>
                             <td class="p-3 text-center">
@@ -141,38 +163,56 @@
                         </tr>
                     `;
                 });
-            } catch (err) { console.error(err); }
+            } catch (err) { 
+                console.error("Gagal memuat pengguna:", err); 
+                document.getElementById('user-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-rose-500">Gagal memuat data pengguna.</td></tr>';
+            }
         }
 
         // Action Handlers
         async function approvePayment(id) {
             if(!confirm("Setujui pembayaran ini dan jadikan akun Pro?")) return;
-            const res = await fetch(`${API_BASE}/payments/${id}/approve`, { method: 'POST', headers });
-            if(res.ok) { alert("Berhasil disetujui!"); loadPendingPayments(); loadUsers(); }
+            try {
+                const res = await fetch(`${API_BASE}/payments/${id}/approve`, { method: 'POST', headers });
+                if(res.ok) { 
+                    alert("Berhasil disetujui!"); 
+                    loadPendingPayments(); 
+                    loadUsers(); // Refresh tabel bawah
+                }
+            } catch(err) { console.error(err); }
         }
 
         async function rejectPayment(id) {
             const alasan = prompt("Masukkan alasan penolakan:");
             if(!alasan) return;
-            const res = await fetch(`${API_BASE}/payments/${id}/reject`, { 
-                method: 'POST', 
-                headers, 
-                body: JSON.stringify({ catatanAdmin: alasan }) 
-            });
-            if(res.ok) { alert("Pembayaran ditolak."); loadPendingPayments(); }
+            try {
+                const res = await fetch(`${API_BASE}/payments/${id}/reject`, { 
+                    method: 'POST', 
+                    headers, 
+                    body: JSON.stringify({ catatanAdmin: alasan }) 
+                });
+                if(res.ok) { 
+                    alert("Pembayaran ditolak."); 
+                    loadPendingPayments(); 
+                    loadUsers(); // PERBAIKAN: Refresh tabel bawah agar alasan penolakan langsung muncul
+                }
+            } catch(err) { console.error(err); }
         }
 
         async function manualUpgrade(userId) {
             const paket = prompt("Nama Paket (misal: Pro Bulanan):", "Pro Bulanan");
+            if(!paket) return;
             const durasi = prompt("Durasi dalam hari:", "30");
-            if(!paket || !durasi) return;
+            if(!durasi) return;
 
-            const res = await fetch(`${API_BASE}/users/${userId}/upgrade`, {
-                method: 'PUT',
-                headers,
-                body: JSON.stringify({ paketPro: paket, durasiHari: parseInt(durasi) })
-            });
-            if(res.ok) { alert("Status user diperbarui!"); loadUsers(); }
+            try {
+                const res = await fetch(`${API_BASE}/users/${userId}/upgrade`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({ paketPro: paket, durasiHari: parseInt(durasi) })
+                });
+                if(res.ok) { alert("Status user diperbarui!"); loadUsers(); }
+            } catch(err) { console.error(err); }
         }
 
         // Initial Load
