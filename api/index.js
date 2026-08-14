@@ -14,7 +14,7 @@ app.use(express.json());
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://ikanbuntal142_db_user:ZmRVHO3ko8MbqB53@cluster0.yye1dud.mongodb.net/?appName=Cluster0";
 
 if (mongoose.connection.readyState === 0) {
-    mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    mongoose.connect(MONGO_URI)
         .then(() => console.log("MongoDB Connected"))
         .catch(err => console.error("MongoDB Error:", err));
 }
@@ -48,6 +48,8 @@ const Payment = mongoose.models.Payment || mongoose.model('Payment', PaymentSche
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { nama, email, pass } = req.body;
+        if (!email || !pass) return res.status(400).json({ message: "Email dan password wajib diisi!" });
+
         const exist = await User.findOne({ email });
         if (exist) return res.status(400).json({ message: "Email sudah terdaftar!" });
 
@@ -66,7 +68,12 @@ app.post('/api/auth/login', async (req, res) => {
         const user = await User.findOne({ email, pass });
         if (!user) return res.status(400).json({ message: "Email atau password salah!" });
         
-        res.json({ success: true, user });
+        // Check pending payment
+        const pendingPayment = await Payment.findOne({ userId: user._id, status: 'Pending' });
+        const userObj = user.toObject();
+        userObj.paymentPending = !!pendingPayment;
+
+        res.json({ success: true, user: userObj });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -81,11 +88,22 @@ app.get('/api/user/status', async (req, res) => {
         const user = await User.findById(id);
         if (!user) return res.status(404).json({ message: "User tidak ditemukan!" });
 
+        // Cek jika status Pro sudah kedaluwarsa
+        if (user.statusAkun === 'Pro' && user.berlakuHingga && new Date() > new Date(user.berlakuHingga)) {
+            user.statusAkun = 'Free';
+            user.paketPro = 'Free';
+            await user.save();
+        }
+
+        const pendingPayment = await Payment.findOne({ userId: user._id, status: 'Pending' });
+
         res.json({
             success: true,
             statusAkun: user.statusAkun,
             paketPro: user.paketPro,
-            berlakuHingga: user.berlakuHingga
+            berlakuHingga: user.berlakuHingga,
+            paymentPending: !!pendingPayment,
+            user: { ...user.toObject(), paymentPending: !!pendingPayment }
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -101,19 +119,29 @@ app.get('/api/user/profile', async (req, res) => {
         const user = await User.findById(id);
         if (!user) return res.status(404).json({ message: "User tidak ditemukan!" });
 
-        res.json({ success: true, user });
+        const pendingPayment = await Payment.findOne({ userId: user._id, status: 'Pending' });
+        const userObj = user.toObject();
+        userObj.paymentPending = !!pendingPayment;
+
+        res.json({ success: true, user: userObj });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// 5. Check & Update Expired Pro Status
+// 5. Check & Update Expired Pro Status & Pending Payments
 app.post('/api/user/check-status', async (req, res) => {
     try {
-        const { id } = req.body;
-        if (!id) return res.status(400).json({ message: "ID User tidak diberikan!" });
+        const { id, userId, email } = req.body;
+        const searchId = id || userId;
+        
+        let user;
+        if (searchId) {
+            user = await User.findById(searchId);
+        } else if (email) {
+            user = await User.findOne({ email });
+        }
 
-        const user = await User.findById(id);
         if (!user) return res.status(404).json({ message: "User tidak ditemukan!" });
 
         // Cek jika status Pro sudah melewati masa berlakuHingga
@@ -123,7 +151,11 @@ app.post('/api/user/check-status', async (req, res) => {
             await user.save();
         }
 
-        res.json({ success: true, user });
+        const pendingPayment = await Payment.findOne({ userId: user._id, status: 'Pending' });
+        const userObj = user.toObject();
+        userObj.paymentPending = !!pendingPayment;
+
+        res.json({ success: true, user: userObj });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -133,9 +165,11 @@ app.post('/api/user/check-status', async (req, res) => {
 app.post('/api/user/request-pro', async (req, res) => {
     try {
         const { userId, paketDipilih, harga } = req.body;
+        if (!userId) return res.status(400).json({ message: "ID User wajib diisi!" });
+
         const payment = new Payment({ userId, paketDipilih, harga });
         await payment.save();
-        res.json({ success: true, message: "Permintaan upgrade terkirim ke Admin!" });
+        res.json({ success: true, message: "Permintaan upgrade terkirim ke Admin!", payment });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
