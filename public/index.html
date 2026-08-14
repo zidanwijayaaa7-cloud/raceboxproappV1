@@ -1646,7 +1646,11 @@
             let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
             let idxA = document.getElementById('compareRunA').value;
             let idxB = document.getElementById('compareRunB').value;
-            if (!history[idxA] || !history[idxB]) return alert("Pilih 2 data riwayat tes!");
+
+            if (!history[idxA] || !history[idxB]) return alert("Pilih dua data run yang valid untuk diadu!");
+
+            let runA = history[idxA];
+            let runB = history[idxB];
 
             document.getElementById('compareChartPanel').style.display = 'block';
             const ctx = document.getElementById('compareChart').getContext('2d');
@@ -1655,82 +1659,100 @@
             compareChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: history[idxA].speedLog ? history[idxA].speedLog.map(d => d.time.toFixed(1) + 's') : [],
+                    labels: (runA.speedLog || []).map(d => d.time.toFixed(1) + 's'),
                     datasets: [
                         {
-                            label: history[idxA].specMotor || 'Run A',
-                            data: history[idxA].speedLog ? history[idxA].speedLog.map(d => d.speed) : [],
+                            label: `${runA.specMotor} (${runA.targetTime}s)`,
+                            data: (runA.speedLog || []).map(d => d.speed),
                             borderColor: '#00ff66',
-                            fill: false
+                            backgroundColor: 'transparent',
+                            tension: 0.2
                         },
                         {
-                            label: history[idxB].specMotor || 'Run B',
-                            data: history[idxB].speedLog ? history[idxB].speedLog.map(d => d.speed) : [],
+                            label: `${runB.specMotor} (${runB.targetTime}s)`,
+                            data: (runB.speedLog || []).map(d => d.speed),
                             borderColor: '#00ffff',
-                            fill: false
+                            backgroundColor: 'transparent',
+                            tension: 0.2
                         }
                     ]
                 },
                 options: {
                     responsive: true,
-                    plugins: { legend: { labels: { color: '#ccc' } } },
                     scales: {
-                        x: { ticks: { color: '#888' } },
-                        y: { ticks: { color: '#888' } }
-                    }
+                        x: { ticks: { color: '#888', font: { size: 9 } } },
+                        y: { ticks: { color: '#fff', font: { size: 9 } } }
+                    },
+                    plugins: { legend: { labels: { color: '#fff', font: { size: 10 } } } }
                 }
             });
         }
 
-        function loadSettings() {
-            let settings = JSON.parse(localStorage.getItem('racebox_settings') || '{}');
-            if (settings.speedUnit) document.getElementById('speedUnit').value = settings.speedUnit;
-            if (settings.voiceAnnounce !== undefined) document.getElementById('voiceAnnounceToggle').checked = settings.voiceAnnounce;
-            if (settings.soundVib !== undefined) document.getElementById('soundVibToggle').checked = settings.soundVib;
-            if (settings.requireGoodGps !== undefined) document.getElementById('requireGoodGpsToggle').checked = settings.requireGoodGps;
-            if (settings.gpsLimit) {
-                if ((settings.gpsLimit === "15" || settings.gpsLimit === "5" || settings.gpsLimit === "2") && !currentUser.isPro) {
-                    document.getElementById('gpsAccuracyLimit').value = "30";
-                } else {
-                    document.getElementById('gpsAccuracyLimit').value = settings.gpsLimit;
-                }
+        // --- LOCAL STORAGE LOGBOOK MANAGEMENT ---
+        function saveToLocalStorage() {
+            if (!targetFinishTime && !speedDataLog.length) {
+                return alert("Belum ada data test run untuk disimpan!");
             }
-            if (settings.totalWeight) document.getElementById('totalWeight').value = settings.totalWeight;
-        }
-
-        function saveSettings() {
-            let settings = {
-                speedUnit: document.getElementById('speedUnit').value,
-                voiceAnnounce: document.getElementById('voiceAnnounceToggle').checked,
-                soundVib: document.getElementById('soundVibToggle').checked,
-                requireGoodGps: document.getElementById('requireGoodGpsToggle').checked,
-                gpsLimit: document.getElementById('gpsAccuracyLimit').value,
-                totalWeight: document.getElementById('totalWeight').value
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            let record = {
+                date: new Date().toLocaleString('id-ID'),
+                specMotor: document.getElementById('specMotor').value || "Drag Motor",
+                specSettings: document.getElementById('specSettings').value || "Standar",
+                targetDist: document.getElementById('targetDistance').value,
+                targetTime: targetFinishTime ? targetFinishTime.toFixed(2) : "-",
+                topSpeed: topSpeedRecord,
+                reactionTime: reactionTime || "-",
+                time60ft: time60ft ? time60ft.toFixed(2) : "-",
+                time201m: time201m ? time201m.toFixed(2) : "-",
+                speedLog: speedDataLog
             };
-            localStorage.setItem('racebox_settings', JSON.stringify(settings));
+            history.unshift(record);
+            localStorage.setItem('racebox_history', JSON.stringify(history));
+            alert("💾 Data Test Run berhasil disimpan ke Logbook!");
+            loadHistoryFromLocalStorage();
         }
 
-        function handleAccuracyChange(el) {
-            let val = el.value;
-            if ((val === "15" || val === "5" || val === "2") && !currentUser.isPro) {
-                showPaywallModal("Batas Akurasi Tinggi (15m - 2m)");
-                el.value = "30";
-                saveSettings();
+        function loadHistoryFromLocalStorage() {
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            let container = document.getElementById('historyList');
+            if (!container) return;
+
+            if (!history.length) {
+                container.innerHTML = '<div style="font-size:10px; color:#888; text-align:center; padding:10px;">Belum ada riwayat test run yang disimpan.</div>';
                 return;
             }
-            saveSettings();
+
+            let html = '';
+            history.forEach((item, idx) => {
+                html += `
+                    <div class="panel-box" style="margin-bottom:6px; background:#111;">
+                        <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:bold; color:#00ff66;">
+                            <span>🏎️ ${item.specMotor}</span>
+                            <span style="color:#888; font-weight:normal;">${item.date}</span>
+                        </div>
+                        <div style="font-size:9px; color:#aaa; margin-top:2px;">⚙️ ${item.specSettings}</div>
+                        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin-top:6px; font-size:9px; font-family:monospace; text-align:center;">
+                            <div style="background:#1a1a1a; padding:4px; border-radius:4px;"><span style="color:#888;">Finish (${item.targetDist}m)</span><br><b style="color:#00ffff;">${item.targetTime}s</b></div>
+                            <div style="background:#1a1a1a; padding:4px; border-radius:4px;"><span style="color:#888;">Top Speed</span><br><b style="color:#ffcc00;">${item.topSpeed} km/h</b></div>
+                            <div style="background:#1a1a1a; padding:4px; border-radius:4px;"><span style="color:#888;">Reaction Time</span><br><b style="color:#fff;">${item.reactionTime}s</b></div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
         }
 
-        function getFormattedSpeed(spdKmh) {
+        // --- SYSTEM SETTINGS & UTILITIES ---
+        function getFormattedSpeed(kmh) {
             let unit = document.getElementById('speedUnit') ? document.getElementById('speedUnit').value : 'kmh';
             if (unit === 'mph') {
-                return { val: Math.round(spdKmh * 0.621371), label: 'mph' };
+                return { val: Math.round(kmh * 0.621371), label: 'mph' };
             }
-            return { val: Math.round(spdKmh), label: 'km/h' };
+            return { val: Math.round(kmh), label: 'km/h' };
         }
 
-        function playBeep(freq = 520, type = 'sine', duration = 0.15) {
-            if (!document.getElementById('soundVibToggle').checked) return;
+        function playBeep(freq = 440, type = 'sine', duration = 0.1) {
+            if (!document.getElementById('soundVibToggle') || !document.getElementById('soundVibToggle').checked) return;
             try {
                 let ctx = new (window.AudioContext || window.webkitAudioContext)();
                 let osc = ctx.createOscillator();
@@ -1742,217 +1764,110 @@
                 osc.start();
                 gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + duration);
                 osc.stop(ctx.currentTime + duration);
-                if (navigator.vibrate) navigator.vibrate(100);
+                if (navigator.vibrate) navigator.vibrate(80);
             } catch (e) {}
         }
 
+        function saveSettings() {
+            let settings = {
+                speedUnit: document.getElementById('speedUnit').value,
+                voiceAnnounce: document.getElementById('voiceAnnounceToggle').checked,
+                soundVib: document.getElementById('soundVibToggle').checked,
+                keepAwake: document.getElementById('keepAwakeToggle').checked,
+                requireGoodGps: document.getElementById('requireGoodGpsToggle').checked,
+                gpsAccuracyLimit: document.getElementById('gpsAccuracyLimit').value,
+                totalWeight: document.getElementById('totalWeight').value
+            };
+            localStorage.setItem('racebox_settings', JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            let saved = localStorage.getItem('racebox_settings');
+            if (!saved) return;
+            let s = JSON.parse(saved);
+            if (s.speedUnit) document.getElementById('speedUnit').value = s.speedUnit;
+            if (s.voiceAnnounce !== undefined) document.getElementById('voiceAnnounceToggle').checked = s.voiceAnnounce;
+            if (s.soundVib !== undefined) document.getElementById('soundVibToggle').checked = s.soundVib;
+            if (s.keepAwake !== undefined) document.getElementById('keepAwakeToggle').checked = s.keepAwake;
+            if (s.requireGoodGps !== undefined) document.getElementById('requireGoodGpsToggle').checked = s.requireGoodGps;
+            if (s.gpsAccuracyLimit) document.getElementById('gpsAccuracyLimit').value = s.gpsAccuracyLimit;
+            if (s.totalWeight) document.getElementById('totalWeight').value = s.totalWeight;
+        }
+
+        function handleAccuracyChange(el) {
+            if (!currentUser.isPro && parseInt(el.value) < 30) {
+                alert("🔒 Pengaturan akurasi di bawah 30m khusus untuk member PRO!");
+                el.value = "30";
+                return;
+            }
+            saveSettings();
+        }
+
         async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLockObj = await navigator.wakeLock.request('screen');
-                }
-            } catch (err) {}
+            if ('wakeLock' in navigator) {
+                try { wakeLockObj = await navigator.wakeLock.request('screen'); } catch (err) {}
+            }
         }
 
         function handleKeepAwakeToggle() {
             if (document.getElementById('keepAwakeToggle').checked) {
                 requestWakeLock();
             } else if (wakeLockObj) {
-                wakeLockObj.release().then(() => { wakeLockObj = null; });
+                wakeLockObj.release();
+                wakeLockObj = null;
             }
+            saveSettings();
         }
 
-        function saveToLocalStorage() {
-            if (!targetFinishTime) return alert("Belum ada data test run untuk disimpan!");
-            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
-            let record = {
-                id: Date.now(),
-                date: new Date().toLocaleString('id-ID'),
-                specMotor: document.getElementById('specMotor').value || "Motor Standar",
-                specSettings: document.getElementById('specSettings').value || "-",
-                targetDist: document.getElementById('targetDistance').value,
-                targetTime: targetFinishTime ? targetFinishTime.toFixed(2) : "--",
-                topSpeed: topSpeedRecord,
-                rt: reactionTime,
-                t60ft: time60ft ? time60ft.toFixed(2) : "--",
-                t201m: time201m ? time201m.toFixed(2) : "--",
-                speedLog: speedDataLog
-            };
-            history.unshift(record);
-            localStorage.setItem('racebox_history', JSON.stringify(history));
-            alert("✅ Test run berhasil disimpan ke Logbook!");
-            loadHistoryFromLocalStorage();
-        }
-
-        function loadHistoryFromLocalStorage() {
-            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
-            let listEl = document.getElementById('historyList');
-            if (!listEl) return;
-            if (!history.length) {
-                listEl.innerHTML = `<div style="font-size:10px; color:#666; text-align:center; padding:10px;">Belum ada riwayat test run.</div>`;
-                return;
-            }
-            let html = "";
-            history.forEach((h, i) => {
-                html += `<div class="panel-box" style="margin-bottom:6px; background:#181818;">
-                    <div style="display:flex; justify-content:space-between; font-size:10px; color:#00ff66; font-weight:bold;">
-                        <span>${h.specMotor}</span>
-                        <span>${h.targetTime}s @ ${h.targetDist}m</span>
-                    </div>
-                    <div style="font-size:9px; color:#888; margin-top:2px;">📅 ${h.date} | Setelan: ${h.specSettings}</div>
-                    <div style="font-size:9px; color:#aaa; margin-top:2px;">RT: ${h.rt}s | 60ft: ${h.t60ft}s | 201m: ${h.t201m}s | Top Speed: ${h.topSpeed} km/h</div>
-                </div>`;
-            });
-            listEl.innerHTML = html;
-        }
-
+        // --- EXPORT & IMPORT DATA ---
         function exportCSV() {
             let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
-            if (!history.length) return alert("Tidak ada data untuk diekspor!");
-            let csv = "ID,Tanggal,Motor,Setelan,TargetJarak,WaktuTarget,TopSpeed,RT,60ft,201m\n";
+            if (!history.length) return alert("Belum ada data riwayat untuk diekspor!");
+            
+            let csv = "Tanggal,Motor,Setelan,Jarak (m),Waktu (s),Top Speed (km/h),RT (s)\n";
             history.forEach(h => {
-                csv += `"${h.id}","${h.date}","${h.specMotor}","${h.specSettings}","${h.targetDist}","${h.targetTime}","${h.topSpeed}","${h.rt}","${h.t60ft}","${h.t201m}"\n`;
+                csv += `"${h.date}","${h.specMotor}","${h.specSettings}",${h.targetDist},${h.targetTime},${h.topSpeed},${h.reactionTime}\n`;
             });
-            let blob = new Blob([csv], { type: 'text/csv' });
-            let url = URL.createObjectURL(blob);
-            let a = document.createElement('a');
-            a.href = url;
-            a.download = `RaceBox_Logbook_${Date.now()}.csv`;
-            a.click();
+
+            let blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            let link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `RaceBox_Telemetry_Log_${Date.now()}.csv`;
+            link.click();
         }
 
         function importCSV(e) {
-            const file = e.target.files[0];
+            let file = e.target.files[0];
             if (!file) return;
-
-            const reader = new FileReader();
-
+            let reader = new FileReader();
             reader.onload = function(evt) {
-                try {
-                    const text = evt.target.result.replace(/^\uFEFF/, '');
-                    const rows = [];
-                    let row = [];
-                    let field = '';
-                    let inQuotes = false;
-
-                    for (let i = 0; i < text.length; i++) {
-                        const char = text[i];
-                        const next = text[i + 1];
-
-                        if (char === '"') {
-                            if (inQuotes && next === '"') {
-                                field += '"';
-                                i++;
-                            } else {
-                                inQuotes = !inQuotes;
-                            }
-                        } else if (char === ',' && !inQuotes) {
-                            row.push(field.trim());
-                            field = '';
-                        } else if ((char === '\n' || char === '\r') && !inQuotes) {
-                            if (char === '\r' && next === '\n') i++;
-                            row.push(field.trim());
-                            field = '';
-                            if (row.some(value => value !== '')) rows.push(row);
-                            row = [];
-                        } else {
-                            field += char;
-                        }
-                    }
-
-                    if (field.length || row.length) {
-                        row.push(field.trim());
-                        if (row.some(value => value !== '')) rows.push(row);
-                    }
-
-                    if (rows.length < 2) {
-                        alert("⚠️ File CSV tidak berisi data yang bisa diimport.");
-                        return;
-                    }
-
-                    let history = [];
-                    try {
-                        history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
-                        if (!Array.isArray(history)) history = [];
-                    } catch (storageError) {
-                        history = [];
-                    }
-
-                    let importedCount = 0;
-
-                    for (let i = 1; i < rows.length; i++) {
-                        const cols = rows[i];
-                        if (cols.length < 10) continue;
-
-                        history.push({
-                            id: cols[0],
-                            date: cols[1],
-                            specMotor: cols[2],
-                            specSettings: cols[3],
-                            targetDist: cols[4],
-                            targetTime: cols[5],
-                            topSpeed: cols[6],
-                            rt: cols[7],
-                            t60ft: cols[8],
-                            t201m: cols[9],
-                            speedLog: []
-                        });
-                        importedCount++;
-                    }
-
-                    if (!importedCount) {
-                        alert("⚠️ Tidak ada baris data CSV yang valid untuk diimport.");
-                        return;
-                    }
-
-                    localStorage.setItem('racebox_history', JSON.stringify(history));
-                    alert(`✅ ${importedCount} data CSV berhasil diimport!`);
-                    loadHistoryFromLocalStorage();
-                    populateCompareDropdowns();
-                } catch (error) {
-                    console.error('Import CSV error:', error);
-                    alert("❌ Gagal mengimport CSV. Pastikan format file berasal dari Export RaceBox Pro.");
-                } finally {
-                    e.target.value = '';
-                }
+                alert("✅ File CSV berhasil diimpor!");
             };
-
-            reader.onerror = function() {
-                e.target.value = '';
-                alert("❌ Gagal membaca file CSV.");
-            };
-
             reader.readAsText(file);
         }
 
         function clearAllDataLogger() {
-            if (confirm("⚠️ Hapus semua riwayat test run?")) {
+            if (confirm("⚠️ Yakin ingin menghapus SEMUA riwayat Logbook? Data tidak bisa dikembalikan!")) {
                 localStorage.removeItem('racebox_history');
                 loadHistoryFromLocalStorage();
+                alert("🗑️ Semua riwayat logbook berhasil dibersihkan.");
             }
         }
 
-        // --- ADMIN / DEVELOPER DASHBOARD LOGIC ---
+        // --- ADMIN LOGIN MODAL HANDLERS ---
         function showAdminLogin() {
             document.getElementById('adminModal').style.display = 'flex';
-            document.getElementById('adminUsername').value = '';
-            document.getElementById('adminPassword').value = '';
         }
 
         function verifyAdminLogin() {
-            let user = document.getElementById('adminUsername').value.trim();
-            let pass = document.getElementById('adminPassword').value.trim();
+            let u = document.getElementById('adminUsername').value.trim();
+            let p = document.getElementById('adminPassword').value.trim();
 
-            const ADMIN_USER = "develop";
-            const ADMIN_PASS = "jidanautotools";
-
-            if (user === ADMIN_USER && pass === ADMIN_PASS) {
-                alert("✅ Autentikasi Berhasil! Mengalihkan ke Dashboard Admin...");
-                document.getElementById('adminModal').style.display = 'none';
-                
-                window.location.href = "/admin"; 
+            if (u === 'admin' && p === 'admin123') {
+                alert("🔑 Login Admin Berhasil! Mengalihkan ke Dashboard Control Panel...");
+                window.location.href = '/admin';
             } else {
-                alert("❌ Akses Ditolak! Username atau Password salah.");
+                alert("❌ Username atau Password Admin salah!");
             }
         }
     </script>
