@@ -114,26 +114,29 @@ app.get('/api/admin/payments/pending', async (req, res) => {
 // 6. Setujui Pembayaran (Approve Pro)
 app.post('/api/admin/payments/:id/approve', async (req, res) => {
     try {
-        const payment = await Payment.findById(req.id || req.params.id);
-        if (!payment) return res.status(404).json({ message: "Data tidak ditemukan" });
+        const paymentId = req.params.id;
+        
+        // 1. Cari pembayaran
+        const payment = await Payment.findById(paymentId);
+        if (!payment) {
+            // Jika ID tidak ada di database, kembalikan 404, bukan 500
+            return res.status(404).json({ message: "Data pembayaran tidak ditemukan" });
+        }
 
-        let expiredDate = new Date();
-        if (payment.paketDipilih === '1 Bulan') expiredDate.setDate(expiredDate.getDate() + 30);
-        else if (payment.paketDipilih === '1 Tahun') expiredDate.setDate(expiredDate.getDate() + 365);
-        else if (payment.paketDipilih === 'Permanen') expiredDate.setFullYear(expiredDate.getFullYear() + 99);
-
-        await User.findByIdAndUpdate(payment.userId, {
-            statusAkun: 'Pro',
-            paketPro: payment.paketDipilih,
-            berlakuHingga: expiredDate
-        });
-
-        payment.status = 'Approved';
+        // 2. Update status pembayaran
+        payment.status = 'approved';
         await payment.save();
 
-        res.json({ success: true, message: "Pengguna berhasil di-upgrade ke Pro!" });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+        // 3. Update status user yang melakukan pembayaran (jika ada relasinya)
+        // Pastikan Anda memanggil ID user dengan properti yang tepat (misal payment.userId)
+        if (payment.userId) {
+            await User.findByIdAndUpdate(payment.userId, { isPro: true }); // Sesuaikan logika pro Anda
+        }
+
+        res.status(200).json({ message: "Pembayaran berhasil di-approve", payment });
+    } catch (error) {
+        console.error("Error approve payment:", error);
+        res.status(500).json({ message: "Terjadi kesalahan pada server", error: error.message });
     }
 });
 
