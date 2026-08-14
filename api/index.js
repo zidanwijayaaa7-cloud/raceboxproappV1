@@ -87,12 +87,17 @@ app.post('/api/user/request-pro', async (req, res) => {
 // --- ENDPOINT DEVELOPER / ADMIN ---
 
 // 4. Ambil Semua User
+// Di dalam api/index.js (atau file rute admin Anda)
 app.get('/api/admin/users', async (req, res) => {
     try {
-        const users = await User.find().sort({ createdAt: -1 });
-        res.json({ data: users });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+        // Pastikan model User sudah di-import di bagian atas file
+        // const User = require('../models/User'); (Sesuaikan path)
+        
+        const users = await User.find({}).sort({ createdAt: -1 }); 
+        res.status(200).json(users); // Wajib mengirimkan array
+    } catch (error) {
+        console.error("Error get users:", error);
+        res.status(500).json({ message: "Gagal mengambil data pengguna", error: error.message });
     }
 });
 
