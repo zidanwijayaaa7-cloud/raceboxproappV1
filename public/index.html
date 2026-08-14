@@ -721,6 +721,14 @@
         </div>
     </div>
 
+    <!-- 🔑 TOMBOL DASHBOARD ADMIN -->
+    <div class="text-center py-6">
+        <a href="/admin" target="_blank" class="text-xs text-slate-500 underline hover:text-slate-300">
+            Dashboard Developer/Admin 🔑
+        </a>
+    </div>
+
+    <!-- Script JavaScript Anda -->
     <script>
         // NOMOR WHATSAPP DEVELOPER (GANTI DENGAN NOMOR WA ASLI ANDA)
         const DEV_WA_NUMBER = "6281910461290";
@@ -735,7 +743,7 @@
             paymentPending: false
         };
 
-        // Register Pengguna ke Database Server[cite: 1]
+        // Register Pengguna ke Database Server
         async function handleRegister() {
             let nama = document.getElementById('regName').value.trim();
             let email = document.getElementById('regEmail').value.trim();
@@ -761,7 +769,7 @@
             }
         }
 
-        // Login Pengguna via Database Server[cite: 1]
+        // Login Pengguna via Database Server
         async function handleLogin() {
             let email = document.getElementById('loginEmail').value.trim();
             let pass = document.getElementById('loginPassword').value.trim();
@@ -812,7 +820,6 @@
             let compareLabel = document.getElementById('navCompareLabel');
             let accSelect = document.getElementById('gpsAccuracyLimit');
 
-            // Update gambar gembok di bagian menu sidebar & opsi akurasi
             if (currentUser.isPro) {
                 if (dynoLabel) dynoLabel.innerText = "Dyno";
                 if (toolsLabel) toolsLabel.innerText = "Tools";
@@ -858,14 +865,13 @@
             document.getElementById('qrPaymentBox').style.display = 'block';
         }
 
-        // Konfirmasi Pembayaran Pro ke Backend + WhatsApp[cite: 1]
+        // Konfirmasi Pembayaran Pro ke Backend + WhatsApp
         async function confirmPaymentWA() {
             if (!currentUser.isLoggedIn) return alert("Silakan login terlebih dahulu!");
 
             let packageName = document.getElementById('selectedPackageName').innerText;
             let harga = packageName === '1 Bulan' ? 25000 : (packageName === '1 Tahun' ? 149000 : 299000);
 
-            // Kirim data pembayaran ke database agar muncul di Antrean indexx.html Developer[cite: 1]
             await fetch('/api/user/request-pro', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1512,136 +1518,36 @@
             document.getElementById('slipMotor').innerText = "Motor: " + (document.getElementById('specMotor').value || "Drag Motor");
             document.getElementById('slipWeatherInfo').innerText = `Cuaca: ${currentWeather.temp}°C | DA: ${currentWeather.da}m`;
             document.getElementById('slipRT').innerText = (reactionTime || "0.000") + "s";
-            document.getElementById('slip60ft').innerText = time60ft ? time60ft.toFixed(2) + "s" : "--";
-            document.getElementById('slip201m').innerText = time201m ? time201m.toFixed(2) + "s" : "--";
-            document.getElementById('slipTargetLabel').innerText = `${targetDist}m Time:`;
-            document.getElementById('slipTargetVal').innerText = targetFinishTime ? targetFinishTime.toFixed(2) + "s" : "--";
-            document.getElementById('slipTopSpeed').innerText = `${topSpeedRecord} ${spdObj.label}`;
+            document.getElementById('slip60ft').innerText = (time60ft ? time60ft.toFixed(2) + "s" : "--");
+            document.getElementById('slip201m').innerText = (time201m ? time201m.toFixed(2) + "s" : "--");
+            document.getElementById('slipTargetLabel').innerText = document.getElementById('targetDistance').value + "m Time:";
+            document.getElementById('slipTargetVal').innerText = (targetFinishTime ? targetFinishTime.toFixed(2) + "s" : "--");
+            document.getElementById('slipTopSpeed').innerText = `${spdObj.val} ${spdObj.label}`;
             document.getElementById('slipPeakG').innerText = peakGForce.toFixed(2) + " G";
             document.getElementById('slipHP').innerText = estHP + " HP";
             document.getElementById('slipModal').style.display = 'flex';
         }
 
         function downloadSlipImage() {
-            const card = document.getElementById('slipCard');
-            html2canvas(card, { backgroundColor: '#fdfae6', scale: 2 }).then(canvas => {
+            html2canvas(document.getElementById('slipCard')).then(canvas => {
                 let link = document.createElement('a');
-                link.download = `TimeSlip-${Date.now()}.png`;
-                link.href = canvas.toDataURL('image/png');
+                link.download = `RaceBox_Slip_${Date.now()}.png`;
+                link.href = canvas.toDataURL();
                 link.click();
             });
         }
 
-        function renderChart() {
-            document.getElementById('chartPanel').style.display = 'block';
-            const ctx = document.getElementById('speedChart').getContext('2d');
-            if (speedChartInstance) speedChartInstance.destroy();
-            speedChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: speedDataLog.map(d => d.time.toFixed(1) + 's'),
-                    datasets: [{ label: 'Kecepatan', data: speedDataLog.map(d => d.speed), borderColor: '#00ff66', fill: false }]
-                },
-                options: { plugins: { legend: { display: false } } }
-            });
-        }
-
-        function populateCompareDropdowns() {
-            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
-            let opts = history.map((item, idx) => `<option value="${idx}">${item.specMotor} (${item.targetTime}s @ ${item.targetDist}m)</option>`).join('');
-            document.getElementById('compareRunA').innerHTML = opts;
-            document.getElementById('compareRunB').innerHTML = opts;
-        }
-
-        function renderComparisonChart() {
-            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
-            let idxA = document.getElementById('compareRunA').value;
-            let idxB = document.getElementById('compareRunB').value;
-            if (!history[idxA] || !history[idxB]) return alert("Pilih 2 data riwayat tes!");
-
-            document.getElementById('compareChartPanel').style.display = 'block';
-            const ctx = document.getElementById('compareChart').getContext('2d');
-            if (compareChartInstance) compareChartInstance.destroy();
-
-            compareChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: history[idxA].speedLog ? history[idxA].speedLog.map(d => d.time.toFixed(1) + 's') : [],
-                    datasets: [
-                        {
-                            label: history[idxA].specMotor || 'Run A',
-                            data: history[idxA].speedLog ? history[idxA].speedLog.map(d => d.speed) : [],
-                            borderColor: '#00ff66',
-                            fill: false
-                        },
-                        {
-                            label: history[idxB].specMotor || 'Run B',
-                            data: history[idxB].speedLog ? history[idxB].speedLog.map(d => d.speed) : [],
-                            borderColor: '#00ffff',
-                            fill: false
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { labels: { color: '#ccc' } } },
-                    scales: {
-                        x: { ticks: { color: '#888' } },
-                        y: { ticks: { color: '#888' } }
-                    }
-                }
-            });
-        }
-
-        function loadSettings() {
-            let settings = JSON.parse(localStorage.getItem('racebox_settings') || '{}');
-            if (settings.speedUnit) document.getElementById('speedUnit').value = settings.speedUnit;
-            if (settings.voiceAnnounce !== undefined) document.getElementById('voiceAnnounceToggle').checked = settings.voiceAnnounce;
-            if (settings.soundVib !== undefined) document.getElementById('soundVibToggle').checked = settings.soundVib;
-            if (settings.requireGoodGps !== undefined) document.getElementById('requireGoodGpsToggle').checked = settings.requireGoodGps;
-            if (settings.gpsLimit) {
-                if ((settings.gpsLimit === "15" || settings.gpsLimit === "5" || settings.gpsLimit === "2") && !currentUser.isPro) {
-                    document.getElementById('gpsAccuracyLimit').value = "30";
-                } else {
-                    document.getElementById('gpsAccuracyLimit').value = settings.gpsLimit;
-                }
-            }
-            if (settings.totalWeight) document.getElementById('totalWeight').value = settings.totalWeight;
-        }
-
-        function saveSettings() {
-            let settings = {
-                speedUnit: document.getElementById('speedUnit').value,
-                voiceAnnounce: document.getElementById('voiceAnnounceToggle').checked,
-                soundVib: document.getElementById('soundVibToggle').checked,
-                requireGoodGps: document.getElementById('requireGoodGpsToggle').checked,
-                gpsLimit: document.getElementById('gpsAccuracyLimit').value,
-                totalWeight: document.getElementById('totalWeight').value
-            };
-            localStorage.setItem('racebox_settings', JSON.stringify(settings));
-        }
-
-        function handleAccuracyChange(el) {
-            let val = el.value;
-            if ((val === "15" || val === "5" || val === "2") && !currentUser.isPro) {
-                showPaywallModal("Batas Akurasi Tinggi (15m - 2m)");
-                el.value = "30";
-                saveSettings();
-                return;
-            }
-            saveSettings();
-        }
-
-        function getFormattedSpeed(spdKmh) {
-            let unit = document.getElementById('speedUnit') ? document.getElementById('speedUnit').value : 'kmh';
+        function getFormattedSpeed(speedKmh) {
+            let unit = document.getElementById('speedUnit').value;
             if (unit === 'mph') {
-                return { val: Math.round(spdKmh * 0.621371), label: 'mph' };
+                return { val: Math.round(speedKmh * 0.621371), label: 'mph' };
             }
-            return { val: Math.round(spdKmh), label: 'km/h' };
+            return { val: Math.round(speedKmh), label: 'km/h' };
         }
 
-        function playBeep(freq = 520, type = 'sine', duration = 0.15) {
+        function playBeep(freq = 440, type = 'sine', duration = 0.15) {
             if (!document.getElementById('soundVibToggle').checked) return;
+            if (navigator.vibrate) navigator.vibrate(100);
             try {
                 let ctx = new (window.AudioContext || window.webkitAudioContext)();
                 let osc = ctx.createOscillator();
@@ -1653,8 +1559,181 @@
                 osc.start();
                 gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + duration);
                 osc.stop(ctx.currentTime + duration);
-                if (navigator.vibrate) navigator.vibrate(100);
-            } catch (e) {}
+            } catch(e) {}
+        }
+
+        function saveToLocalStorage() {
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            let record = {
+                id: Date.now(),
+                date: new Date().toLocaleString('id-ID'),
+                specMotor: document.getElementById('specMotor').value || 'Tanpa Nama',
+                specSettings: document.getElementById('specSettings').value || '-',
+                targetDist: document.getElementById('targetDistance').value,
+                targetTime: targetFinishTime ? targetFinishTime.toFixed(2) : '--',
+                topSpeed: topSpeedRecord,
+                rt: reactionTime,
+                t60ft: time60ft ? time60ft.toFixed(2) : '--',
+                t201m: time201m ? time201m.toFixed(2) : '--',
+                peakG: peakGForce.toFixed(2),
+                speedLog: speedDataLog
+            };
+            history.unshift(record);
+            localStorage.setItem('racebox_history', JSON.stringify(history));
+            alert("💾 Data Test Run Berhasil Disimpan!");
+            loadHistoryFromLocalStorage();
+        }
+
+        function loadHistoryFromLocalStorage() {
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            let container = document.getElementById('historyList');
+            if (!container) return;
+            if (!history.length) {
+                container.innerHTML = `<div style="font-size:10px; color:#888; text-align:center; padding:10px;">Belum ada riwayat penyimpanan test run.</div>`;
+                return;
+            }
+            let html = "";
+            history.forEach((item, index) => {
+                html += `<div style="background:#111; border:1px solid #222; border-radius:6px; padding:8px; margin-bottom:6px; font-size:10px;">
+                    <div style="display:flex; justify-content:space-between; color:#00ff66; font-weight:bold;">
+                        <span>#${history.length - index} ${item.specMotor}</span>
+                        <span>${item.targetTime}s (${item.targetDist}m)</span>
+                    </div>
+                    <div style="color:#888; font-size:9px; margin-top:2px;">${item.date} | Setelan: ${item.specSettings}</div>
+                    <div style="display:flex; justify-content:space-between; margin-top:4px; color:#aaa; font-family:monospace;">
+                        <span>RT: ${item.rt || '--'}s</span>
+                        <span>60ft: ${item.t60ft}s</span>
+                        <span>201m: ${item.t201m}s</span>
+                        <span>Top: ${item.topSpeed || 0} km/h</span>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function populateCompareDropdowns() {
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            let selectA = document.getElementById('compareRunA');
+            let selectB = document.getElementById('compareRunB');
+            if (!selectA || !selectB) return;
+            selectA.innerHTML = ""; selectB.innerHTML = "";
+            if (!history.length) {
+                selectA.innerHTML = "<option>-- Tidak Ada Data --</option>";
+                selectB.innerHTML = "<option>-- Tidak Ada Data --</option>";
+                return;
+            }
+            history.forEach((item, i) => {
+                let opt = `<option value="${i}">#${history.length - i} - ${item.specMotor} (${item.targetTime}s)</option>`;
+                selectA.innerHTML += opt;
+                selectB.innerHTML += opt;
+            });
+            if (history.length > 1) selectB.selectedIndex = 1;
+        }
+
+        function renderComparisonChart() {
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            let idxA = document.getElementById('compareRunA').value;
+            let idxB = document.getElementById('compareRunB').value;
+            if (!history[idxA] || !history[idxB]) return alert("Pilih dua data run untuk dibandingkan!");
+
+            let runA = history[idxA];
+            let runB = history[idxB];
+
+            document.getElementById('compareChartPanel').style.display = 'block';
+            const ctx = document.getElementById('compareChart').getContext('2d');
+            if (compareChartInstance) compareChartInstance.destroy();
+
+            let logA = runA.speedLog || [];
+            let logB = runB.speedLog || [];
+
+            compareChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: logA.map(p => p.time.toFixed(1) + 's'),
+                    datasets: [
+                        {
+                            label: `Run A: ${runA.specMotor}`,
+                            data: logA.map(p => p.speed),
+                            borderColor: '#00ff66',
+                            tension: 0.2
+                        },
+                        {
+                            label: `Run B: ${runB.specMotor}`,
+                            data: logB.map(p => p.speed),
+                            borderColor: '#00ffff',
+                            tension: 0.2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { ticks: { color: '#888', font: { size: 9 } } },
+                        y: { ticks: { color: '#888', font: { size: 9 } } }
+                    },
+                    plugins: { legend: { labels: { color: '#ccc', font: { size: 9 } } } }
+                }
+            });
+        }
+
+        function renderChart() {
+            if (!speedDataLog.length) return;
+            document.getElementById('chartPanel').style.display = 'block';
+            const ctx = document.getElementById('speedChart').getContext('2d');
+            if (speedChartInstance) speedChartInstance.destroy();
+
+            speedChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: speedDataLog.map(p => p.time.toFixed(1) + 's'),
+                    datasets: [{
+                        label: 'Kecepatan (km/h)',
+                        data: speedDataLog.map(p => p.speed),
+                        borderColor: '#00ff66',
+                        backgroundColor: 'rgba(0, 255, 102, 0.1)',
+                        fill: true,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { ticks: { color: '#888', font: { size: 8 } } },
+                        y: { ticks: { color: '#888', font: { size: 8 } } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function loadSettings() {
+            let settings = JSON.parse(localStorage.getItem('racebox_settings') || '{}');
+            if (settings.speedUnit) document.getElementById('speedUnit').value = settings.speedUnit;
+            if (settings.voiceAnnounce !== undefined) document.getElementById('voiceAnnounceToggle').checked = settings.voiceAnnounce;
+            if (settings.soundVib !== undefined) document.getElementById('soundVibToggle').checked = settings.soundVib;
+            if (settings.requireGoodGps !== undefined) document.getElementById('requireGoodGpsToggle').checked = settings.requireGoodGps;
+            if (settings.gpsAccuracyLimit) document.getElementById('gpsAccuracyLimit').value = settings.gpsAccuracyLimit;
+            if (settings.totalWeight) document.getElementById('totalWeight').value = settings.totalWeight;
+        }
+
+        function saveSettings() {
+            let settings = {
+                speedUnit: document.getElementById('speedUnit').value,
+                voiceAnnounce: document.getElementById('voiceAnnounceToggle').checked,
+                soundVib: document.getElementById('soundVibToggle').checked,
+                requireGoodGps: document.getElementById('requireGoodGpsToggle').checked,
+                gpsAccuracyLimit: document.getElementById('gpsAccuracyLimit').value,
+                totalWeight: document.getElementById('totalWeight').value
+            };
+            localStorage.setItem('racebox_settings', JSON.stringify(settings));
+        }
+
+        function handleKeepAwakeToggle() {
+            if (document.getElementById('keepAwakeToggle').checked) {
+                requestWakeLock();
+            } else {
+                if (wakeLockObj) wakeLockObj.release();
+            }
         }
 
         async function requestWakeLock() {
@@ -1665,64 +1744,22 @@
             } catch (err) {}
         }
 
-        function handleKeepAwakeToggle() {
-            if (document.getElementById('keepAwakeToggle').checked) {
-                requestWakeLock();
-            } else if (wakeLockObj) {
-                wakeLockObj.release().then(() => { wakeLockObj = null; });
-            }
-        }
-
-        function saveToLocalStorage() {
-            if (!targetFinishTime) return alert("Belum ada data test run untuk disimpan!");
-            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
-            let record = {
-                id: Date.now(),
-                date: new Date().toLocaleString('id-ID'),
-                specMotor: document.getElementById('specMotor').value || "Motor Standar",
-                specSettings: document.getElementById('specSettings').value || "-",
-                targetDist: document.getElementById('targetDistance').value,
-                targetTime: targetFinishTime ? targetFinishTime.toFixed(2) : "--",
-                topSpeed: topSpeedRecord,
-                rt: reactionTime,
-                t60ft: time60ft ? time60ft.toFixed(2) : "--",
-                t201m: time201m ? time201m.toFixed(2) : "--",
-                speedLog: speedDataLog
-            };
-            history.unshift(record);
-            localStorage.setItem('racebox_history', JSON.stringify(history));
-            alert("✅ Test run berhasil disimpan ke Logbook!");
-            loadHistoryFromLocalStorage();
-        }
-
-        function loadHistoryFromLocalStorage() {
-            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
-            let listEl = document.getElementById('historyList');
-            if (!listEl) return;
-            if (!history.length) {
-                listEl.innerHTML = `<div style="font-size:10px; color:#666; text-align:center; padding:10px;">Belum ada riwayat test run.</div>`;
+        function handleAccuracyChange(el) {
+            let val = parseInt(el.value);
+            if ((val === 15 || val === 5 || val === 2) && !currentUser.isPro) {
+                showPaywallModal("AKURASI GPS PRESISI TINGGI");
+                el.value = "30";
                 return;
             }
-            let html = "";
-            history.forEach((h, i) => {
-                html += `<div class="panel-box" style="margin-bottom:6px; background:#181818;">
-                    <div style="display:flex; justify-content:space-between; font-size:10px; color:#00ff66; font-weight:bold;">
-                        <span>${h.specMotor}</span>
-                        <span>${h.targetTime}s @ ${h.targetDist}m</span>
-                    </div>
-                    <div style="font-size:9px; color:#888; margin-top:2px;">📅 ${h.date} | Setelan: ${h.specSettings}</div>
-                    <div style="font-size:9px; color:#aaa; margin-top:2px;">RT: ${h.rt}s | 60ft: ${h.t60ft}s | 201m: ${h.t201m}s | Top Speed: ${h.topSpeed} km/h</div>
-                </div>`;
-            });
-            listEl.innerHTML = html;
+            saveSettings();
         }
 
         function exportCSV() {
             let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
-            if (!history.length) return alert("Tidak ada data untuk diekspor!");
-            let csv = "ID,Tanggal,Motor,Setelan,TargetJarak,WaktuTarget,TopSpeed,RT,60ft,201m\n";
-            history.forEach(h => {
-                csv += `"${h.id}","${h.date}","${h.specMotor}","${h.specSettings}","${h.targetDist}","${h.targetTime}","${h.topSpeed}","${h.rt}","${h.t60ft}","${h.t201m}"\n`;
+            if (!history.length) return alert("Belum ada data riwayat untuk diekspor!");
+            let csv = "ID,Tanggal,Motor,Setelan,TargetJarak(m),TargetWaktu(s),TopSpeed(kmh),RT(s),60ft(s),201m(s),PeakG\n";
+            history.forEach(item => {
+                csv += `"${item.id}","${item.date}","${item.specMotor}","${item.specSettings}","${item.targetDist}","${item.targetTime}","${item.topSpeed}","${item.rt}","${item.t60ft}","${item.t201m}","${item.peakG}"\n`;
             });
             let blob = new Blob([csv], { type: 'text/csv' });
             let url = URL.createObjectURL(blob);
@@ -1742,25 +1779,34 @@
                 for (let i = 1; i < lines.length; i++) {
                     if (!lines[i].trim()) continue;
                     let cols = lines[i].split(',').map(c => c.replace(/"/g, ''));
-                    if (cols.length >= 10) {
+                    if (cols.length >= 11) {
                         history.push({
-                            id: cols[0], date: cols[1], specMotor: cols[2], specSettings: cols[3],
-                            targetDist: cols[4], targetTime: cols[5], topSpeed: cols[6], rt: cols[7],
-                            t60ft: cols[8], t201m: cols[9], speedLog: []
+                            id: cols[0],
+                            date: cols[1],
+                            specMotor: cols[2],
+                            specSettings: cols[3],
+                            targetDist: cols[4],
+                            targetTime: cols[5],
+                            topSpeed: cols[6],
+                            rt: cols[7],
+                            t60ft: cols[8],
+                            t201m: cols[9],
+                            peakG: cols[10]
                         });
                     }
                 }
                 localStorage.setItem('racebox_history', JSON.stringify(history));
-                alert("✅ Data CSV berhasil diimport!");
+                alert("✅ Berhasil mengimpor data CSV!");
                 loadHistoryFromLocalStorage();
             };
             reader.readAsText(file);
         }
 
         function clearAllDataLogger() {
-            if (confirm("⚠️ Hapus semua riwayat test run?")) {
+            if (confirm("⚠️ Apakah Anda yakin ingin menghapus SELURUH riwayat logbook test run?")) {
                 localStorage.removeItem('racebox_history');
                 loadHistoryFromLocalStorage();
+                alert("🗑️ Seluruh logbook telah dibersihkan.");
             }
         }
     </script>
