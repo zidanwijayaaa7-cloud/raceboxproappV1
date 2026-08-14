@@ -72,7 +72,64 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// 3. Request Upgrade Pro (Kirim Antrean Pembayaran)
+// 3. Get User Status
+app.get('/api/user/status', async (req, res) => {
+    try {
+        const { id } = req.query;
+        if (!id) return res.status(400).json({ message: "ID User tidak diberikan!" });
+
+        const user = await User.findById(id);
+        if (!user) return res.status(404).json({ message: "User tidak ditemukan!" });
+
+        res.json({
+            success: true,
+            statusAkun: user.statusAkun,
+            paketPro: user.paketPro,
+            berlakuHingga: user.berlakuHingga
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4. Get User Profile
+app.get('/api/user/profile', async (req, res) => {
+    try {
+        const { id } = req.query;
+        if (!id) return res.status(400).json({ message: "ID User tidak diberikan!" });
+
+        const user = await User.findById(id);
+        if (!user) return res.status(404).json({ message: "User tidak ditemukan!" });
+
+        res.json({ success: true, user });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 5. Check & Update Expired Pro Status
+app.post('/api/user/check-status', async (req, res) => {
+    try {
+        const { id } = req.body;
+        if (!id) return res.status(400).json({ message: "ID User tidak diberikan!" });
+
+        const user = await User.findById(id);
+        if (!user) return res.status(404).json({ message: "User tidak ditemukan!" });
+
+        // Cek jika status Pro sudah melewati masa berlakuHingga
+        if (user.statusAkun === 'Pro' && user.berlakuHingga && new Date() > new Date(user.berlakuHingga)) {
+            user.statusAkun = 'Free';
+            user.paketPro = 'Free';
+            await user.save();
+        }
+
+        res.json({ success: true, user });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 6. Request Upgrade Pro (Kirim Antrean Pembayaran)
 app.post('/api/user/request-pro', async (req, res) => {
     try {
         const { userId, paketDipilih, harga } = req.body;
@@ -86,22 +143,18 @@ app.post('/api/user/request-pro', async (req, res) => {
 
 // --- ENDPOINT DEVELOPER / ADMIN ---
 
-// 4. Ambil Semua User
-// Di dalam api/index.js (atau file rute admin Anda)
+// 7. Ambil Semua User
 app.get('/api/admin/users', async (req, res) => {
     try {
-        // Pastikan model User sudah di-import di bagian atas file
-        // const User = require('../models/User'); (Sesuaikan path)
-        
         const users = await User.find({}).sort({ createdAt: -1 }); 
-        res.status(200).json(users); // Wajib mengirimkan array
+        res.status(200).json(users);
     } catch (error) {
         console.error("Error get users:", error);
         res.status(500).json({ message: "Gagal mengambil data pengguna", error: error.message });
     }
 });
 
-// 5. Ambil Antrean Pembayaran
+// 8. Ambil Antrean Pembayaran
 app.get('/api/admin/payments/pending', async (req, res) => {
     try {
         const payments = await Payment.find({ status: 'Pending' }).populate('userId');
@@ -111,26 +164,30 @@ app.get('/api/admin/payments/pending', async (req, res) => {
     }
 });
 
-// 6. Setujui Pembayaran (Approve Pro)
+// 9. Setujui Pembayaran (Approve Pro)
 app.post('/api/admin/payments/:id/approve', async (req, res) => {
     try {
         const paymentId = req.params.id;
         
-        // 1. Cari pembayaran
         const payment = await Payment.findById(paymentId);
         if (!payment) {
-            // Jika ID tidak ada di database, kembalikan 404, bukan 500
             return res.status(404).json({ message: "Data pembayaran tidak ditemukan" });
         }
 
-        // 2. Update status pembayaran
-        payment.status = 'approved';
+        payment.status = 'Approved';
         await payment.save();
 
-        // 3. Update status user yang melakukan pembayaran (jika ada relasinya)
-        // Pastikan Anda memanggil ID user dengan properti yang tepat (misal payment.userId)
         if (payment.userId) {
-            await User.findByIdAndUpdate(payment.userId, { isPro: true }); // Sesuaikan logika pro Anda
+            let expiredDate = new Date();
+            if (payment.paketDipilih === '1 Bulan') expiredDate.setDate(expiredDate.getDate() + 30);
+            else if (payment.paketDipilih === '1 Tahun') expiredDate.setDate(expiredDate.getDate() + 365);
+            else if (payment.paketDipilih === 'Permanen') expiredDate.setFullYear(expiredDate.getFullYear() + 99);
+
+            await User.findByIdAndUpdate(payment.userId, {
+                statusAkun: 'Pro',
+                paketPro: payment.paketDipilih,
+                berlakuHingga: expiredDate
+            });
         }
 
         res.status(200).json({ message: "Pembayaran berhasil di-approve", payment });
@@ -140,7 +197,7 @@ app.post('/api/admin/payments/:id/approve', async (req, res) => {
     }
 });
 
-// 7. Tolak Pembayaran
+// 10. Tolak Pembayaran
 app.post('/api/admin/payments/:id/reject', async (req, res) => {
     try {
         await Payment.findByIdAndUpdate(req.params.id, { status: 'Rejected' });
@@ -150,10 +207,10 @@ app.post('/api/admin/payments/:id/reject', async (req, res) => {
     }
 });
 
-// 8. Manual Switch Pro / Free oleh Admin
+// 11. Manual Switch Pro / Free oleh Admin
 app.put('/api/admin/users/:userId/upgrade', async (req, res) => {
     try {
-        const { statusAkun, paketPro } = req.body; // statusAkun = 'Pro' / 'Free'
+        const { statusAkun, paketPro } = req.body;
         let expiredDate = null;
 
         if (statusAkun === 'Pro') {
