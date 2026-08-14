@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>RaceBox Pro Ultimate - Telemetry, Dyno & Acoustic RPM V2</title>
+    
+    <!-- PWA Manifest Inline -->
+    <link rel="manifest" href='data:application/manifest+json,{"name":"RaceBox Pro","short_name":"RaceBox","start_url":".","display":"standalone","background_color":"#0a0a0a","theme_color":"#00ff66","icons":[{"src":"https://cdn-icons-png.flaticon.com/512/5312/5312433.png","sizes":"512x512","type":"image/png"}]}'>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, sans-serif; user-select: none; }
+        body { background-color: #0a0a0a; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
+        body.hud-active { transform: scaleX(-1); }
+
+        /* Sidebar Nav */
+        .sidebar { width: 68px; background: #111; border-right: 1px solid #222; display: flex; flex-direction: column; align-items: center; padding-top: 15px; z-index: 100; flex-shrink: 0; justify-content: space-between; padding-bottom: 10px; }
+        .sidebar-top { display: flex; flex-direction: column; align-items: center; width: 100%; }
+        .brand { color: #00ff66; font-weight: 900; font-size: 9px; margin-bottom: 15px; text-align: center; letter-spacing: 1px; line-height: 1.1; }
+        .nav-item { width: 46px; height: 44px; margin-bottom: 10px; background: #1a1a1a; border: 1px solid #333; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #888; cursor: pointer; font-size: 16px; transition: all 0.2s; text-decoration: none; }
+        .nav-item span { font-size: 7px; margin-top: 2px; text-transform: uppercase; font-weight: bold; }
+        .nav-item.active { background: #112a1a; border-color: #00ff66; color: #00ff66; box-shadow: 0 0 10px rgba(0, 255, 102, 0.3); }
+
+        .dev-mini-badge { font-size: 6px; color: #00ffff; font-family: monospace; letter-spacing: 1px; text-align: center; opacity: 0.7; }
+
+        /* Layout Content */
+        .main-content { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow-y: auto; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #141414; border-bottom: 1px solid #222; font-size: 10px; flex-wrap: wrap; gap: 4px; }
+        .status-pill { background: #1c1c1c; border: 1px solid #333; padding: 3px 8px; border-radius: 6px; font-family: monospace; white-space: nowrap; }
+        .view-section { display: none; padding: 10px; flex: 1; flex-direction: column; gap: 8px; }
+        .view-section.active { display: flex; }
+
+        .panel-box { background: #141414; border: 1px solid #262626; border-radius: 10px; padding: 10px; }
+        .section-title { font-size: 10px; font-weight: bold; color: #00ff66; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center; }
+
+        /* Sub-tabs for Tools */
+        .tool-tabs { display: flex; gap: 4px; border-bottom: 1px solid #222; padding-bottom: 6px; margin-bottom: 8px; overflow-x: auto; }
+        .tool-tab { flex: 1; min-width: 80px; padding: 6px; text-align: center; font-size: 9.5px; font-weight: bold; background: #181818; border: 1px solid #2a2a2a; color: #888; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+        .tool-tab.active { background: #11221a; border-color: #00ff66; color: #00ff66; }
+
+        /* Speedo & Timer */
+        .speedo-container { background: #141414; border: 1px solid #262626; border-radius: 12px; padding: 10px; text-align: center; }
+        .timer-display { font-size: 38px; font-weight: 900; color: #00ff66; font-family: monospace; text-shadow: 0 0 12px rgba(0,255,102,0.4); }
+        .status-badge { font-size: 11px; font-weight: bold; color: #ffcc00; text-transform: uppercase; margin-top: 2px; }
+
+        /* Metrics Grid */
+        .drag-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .metric-box { background: #111; border: 1px solid #222; border-radius: 6px; padding: 6px; text-align: center; }
+        .metric-box .label { font-size: 8px; color: #777; text-transform: uppercase; }
+        .metric-box .val { font-size: 12px; font-weight: bold; color: #00ffff; font-family: monospace; margin-top: 2px; }
+
+        /* Weather Card */
+        .weather-card { background: #0d1a15; border: 1px solid #00ff6644; border-radius: 8px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; }
+
+        /* Christmas Tree */
+        .tree-container { display: none; flex-direction: column; align-items: center; gap: 4px; padding: 6px; background: #0d0d0d; border-radius: 8px; border: 1px solid #222; }
+        .tree-row { display: flex; gap: 10px; }
+        .tree-light { width: 14px; height: 14px; border-radius: 50%; background: #222; border: 1px solid #444; }
+        .tree-light.yellow.active { background: #ffcc00; box-shadow: 0 0 10px #ffcc00; }
+        .tree-light.green.active { background: #00ff66; box-shadow: 0 0 12px #00ff66; }
+
+        /* Form & Buttons */
+        input, select { background: #1a1a1a; color: #00ff66; border: 1px solid #333; padding: 7px 9px; border-radius: 6px; font-size: 11px; outline: none; width: 100%; }
+        label { font-size: 9px; color: #888; text-transform: uppercase; display: block; margin-bottom: 3px; font-weight: 600; }
+        .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+        .form-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 6px; }
+
+        .action-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .btn { padding: 9px; border-radius: 8px; font-weight: bold; font-size: 11px; border: 1px solid; cursor: pointer; text-align: center; }
+        .btn-stage { background: #112211; color: #00ff66; border-color: #00ff66; }
+        .btn-reset { background: #222211; color: #ffcc00; border-color: #ffcc00; }
+        .btn-save { background: #112222; color: #00ffff; border-color: #00ffff; }
+        .btn-hud { background: #111a22; color: #33aaff; border-color: #33aaff; padding: 4px 8px; font-size: 10px; }
+        .btn-action { background: #222; color: #fff; border-color: #444; padding: 8px; font-size: 11px; }
+
+        /* Time Slip Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 1000; flex-direction: column; gap: 10px; }
+        .time-slip { background: #fdfae6; color: #111; font-family: 'Courier New', Courier, monospace; width: 280px; padding: 15px; border-radius: 4px; box-shadow: 0 0 20px rgba(255,255,255,0.2); }
+
+        /* Settings Cards */
+        .setting-card { background: #121212; border: 1px solid #222; border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .setting-label { font-size: 11px; font-weight: 600; color: #ffffff; }
+        .custom-checkbox { width: 18px; height: 18px; accent-color: #00ff66; cursor: pointer; }
+
+        /* Dyno Metric Highlights */
+        .dyno-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+        .dyno-stat-card { background: #0c1812; border: 1px solid #00ff6633; border-radius: 8px; padding: 8px; text-align: center; }
+        .dyno-stat-card .val { font-size: 18px; font-weight: 900; color: #00ff66; font-family: monospace; }
+        .dyno-stat-card .unit { font-size: 9px; color: #888; }
+
+        /* Table Styling */
+        .gear-table { width: 100%; border-collapse: collapse; font-size: 10px; font-family: monospace; margin-top: 6px; }
+        .gear-table th, .gear-table td { border: 1px solid #222; padding: 5px; text-align: center; }
+        .gear-table th { background: #1a1a1a; color: #00ff66; }
+
+        /* RPM Gauge Visualizer */
+        .rpm-display-container { background: #0a1410; border: 1px solid #00ff6655; border-radius: 12px; padding: 15px; text-align: center; position: relative; overflow: hidden; }
+        .rpm-big-number { font-size: 48px; font-weight: 900; color: #00ff66; font-family: monospace; text-shadow: 0 0 15px rgba(0, 255, 102, 0.5); line-height: 1; }
+        .rpm-bar-bg { width: 100%; height: 12px; background: #1b1b1b; border-radius: 6px; margin-top: 12px; overflow: hidden; border: 1px solid #333; position: relative; }
+        .rpm-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #00ff66 0%, #ffcc00 70%, #ff3344 100%); transition: width 0.08s ease-out; }
+        
+        /* Developer Cyber Card */
+        .dev-card { background: linear-gradient(135deg, #0d1a15 0%, #0f1218 100%); border: 1px solid #00ff66aa; border-radius: 12px; padding: 12px; position: relative; overflow: hidden; box-shadow: 0 0 15px rgba(0, 255, 102, 0.15); }
+        .dev-card::before { content: "CORE DEV"; position: absolute; right: -12px; top: -8px; background: #00ff6622; color: #00ff66; font-size: 32px; font-weight: 900; opacity: 0.12; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-top">
+            <div class="brand">RACEBOX<br>PRO</div>
+            <div class="nav-item active" onclick="switchTab('drag', this)">🏁<span>Drag</span></div>
+            <div class="nav-item" onclick="switchTab('dyno', this)">📊<span id="navDynoLabel">Dyno 🔒</span></div>
+            <div class="nav-item" onclick="switchTab('tools', this)">🧰<span id="navToolsLabel">Tools 🔒</span></div>
+            <div class="nav-item" onclick="switchTab('log', this)">📝<span>Log</span></div>
+            <div class="nav-item" onclick="switchTab('compare', this)">📈<span id="navCompareLabel">Adu 🔒</span></div>
+            <div class="nav-item" onclick="switchTab('settings', this)">⚙️<span>Set</span></div>
+            <div class="nav-item" onclick="switchTab('login', this)">🔑<span>Login</span></div>
+            <div class="nav-item" onclick="switchTab('register', this)">📝<span>Regis</span></div>
+            <div class="nav-item" onclick="switchTab('account', this)" id="navAccount" style="display:none;">👤<span>Akun</span></div>
+            
+            <!-- NOMOR WHATSAPP DEV DI NAVIGATION -->
+            <a href="https://wa.me/6281910461290?text=Halo%20Developer%20RaceBox%20Pro,%20saya%20butuh%20bantuan" target="_blank" class="nav-item" style="border-color: #25d366; color: #25d366;">
+                💬<span>WA Dev</span>
+            </a>
+        </div>
+        <div class="dev-mini-badge">
+            DEV CORE<br>v3.5 PRO
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- Top Bar Real-Time Sensors -->
+        <div class="top-bar">
+            <div class="status-pill" id="gpsStatus">📡 GPS Searching...</div>
+            <div class="status-pill" id="slopeStatus" style="color: #00ff66;">📐 Kemiringan: 0.0°</div>
+            <button class="btn btn-hud" onclick="document.body.classList.toggle('hud-active')">🚘 HUD</button>
+        </div>
+
+        <!-- 1. DRAG RACE VIEW -->
+        <div id="view-drag" class="view-section active">
+            <!-- Mode Jarak Balap -->
+            <div class="panel-box" style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="section-title" style="margin: 0;">TARGET BALAP:</span>
+                <select id="targetDistance" style="padding: 4px 8px; font-weight: bold; width: auto;">
+                    <option value="100">100 Meter</option>
+                    <option value="201">201 Meter (Drag Resmi)</option>
+                    <option value="402">402 Meter</option>
+                    <option value="500" selected>500 Meter (Drag Liar)</option>
+                    <option value="1200">1200 Meter (Long Trek)</option>
+                </select>
+            </div>
+
+            <!-- Widget Weather & Density Altitude -->
+            <div class="weather-card" id="weatherWidget">
+                <div>
+                    <div style="font-weight: bold; color: #00ff66;" id="weatherTemp">🌡️ Cuaca: Memuat...</div>
+                    <div style="color: #888; font-size: 9px;" id="weatherHint">Mengambil data cuaca via GPS...</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-weight: bold; color: #00ffff; font-family: monospace;" id="daValue">DA: -- m</div>
+                    <div style="font-size: 8px; color: #aaa;">DENSITY ALTITUDE</div>
+                </div>
+            </div>
+
+            <!-- Christmas Tree -->
+            <div class="tree-container" id="treeBox">
+                <div class="tree-row">
+                    <div class="tree-light yellow" id="lightY1"></div>
+                    <div class="tree-light yellow" id="lightY2"></div>
+                    <div class="tree-light yellow" id="lightY3"></div>
+                </div>
+                <div class="tree-row"><div class="tree-light green" id="lightGreen"></div></div>
+            </div>
+
+            <!-- Telemetry Metrics Grid -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                <div class="panel-box" style="text-align: center;">
+                    <span style="font-size: 8px; color: #777;">JARAK TEMPUH</span>
+                    <div style="font-size: 15px; font-weight: bold; color: #00ffff; font-family: monospace;" id="dragDistance">0.0 m</div>
+                </div>
+                <div class="panel-box" style="text-align: center;">
+                    <span style="font-size: 8px; color: #777;">KECEPATAN</span>
+                    <div style="font-size: 15px; font-weight: bold; color: #fff; font-family: monospace;" id="dragSpeed">0 km/h</div>
+                </div>
+                <div class="panel-box" style="text-align: center;">
+                    <span style="font-size: 8px; color: #777;">G-FORCE ACCEL</span>
+                    <div style="font-size: 15px; font-weight: bold; color: #ffcc00; font-family: monospace;" id="dragGForce">0.00 G</div>
+                </div>
+            </div>
+
+            <div class="speedo-container">
+                <div class="timer-display" id="dragTimer">00:00.00</div>
+                <div class="status-badge" id="dragStatus">STANDBY</div>
+            </div>
+
+            <div class="drag-metrics">
+                <div class="metric-box"><div class="label">Reaksi Joki (RT)</div><div class="val" style="color:#ffcc00;" id="resRT">-.--- s</div></div>
+                <div class="metric-box"><div class="label">60 ft Time</div><div class="val" id="res60ft">--.-- s</div></div>
+                <div class="metric-box"><div class="label">201 Meter</div><div class="val" id="res201m">--.-- s</div></div>
+                <div class="metric-box"><div class="label">402 Meter</div><div class="val" id="res402m">--.-- s</div></div>
+                <div class="metric-box"><div class="label">500 Meter</div><div class="val" id="res500m">--.-- s</div></div>
+                <div class="metric-box"><div class="label">1200 Meter</div><div class="val" id="res1200m">--.-- s</div></div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                <div class="metric-box"><div class="label">TARGET FINISH TIME</div><div class="val" style="color:#00ff66;" id="resTarget">--.-- s</div></div>
+                <div class="metric-box"><div class="label">TOP SPEED</div><div class="val" style="color:#ffcc00;" id="resTopSpeed">-- km/h</div></div>
+            </div>
+
+            <div class="panel-box" id="chartPanel" style="display: none;">
+                <span class="section-title">GRAFIK KECEPATAN LIVE</span>
+                <canvas id="speedChart" style="max-height: 100px; width: 100%;"></canvas>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-stage" onclick="armSystemWithTree()">🏁 STAGE</button>
+                <button class="btn btn-reset" onclick="resetDrag()">RESET</button>
+                <button class="btn btn-save" onclick="saveToLocalStorage()">💾 SIMPAN</button>
+            </div>
+        </div>
+
+        <!-- 2. VIRTUAL DYNO VIEW -->
+        <div id="view-dyno" class="view-section">
+            <div class="panel-box">
+                <div class="section-title">
+                    <span>📊 VIRTUAL DYNO ANALYSIS</span>
+                    <button class="btn btn-hud" onclick="loadRunToDyno()" style="padding: 2px 6px;">🔄 AMBIL TEST RUN TERAKHIR</button>
+                </div>
+                
+                <div class="form-grid-3" style="margin-top: 6px;">
+                    <div>
+                        <label>Total Bobot (kg)</label>
+                        <input type="number" id="dynoWeight" value="130" onchange="runDynoAnalysis()">
+                    </div>
+                    <div>
+                        <label>Koef. Drag (Cd)</label>
+                        <input type="number" id="dynoCd" value="0.60" step="0.05" onchange="runDynoAnalysis()">
+                    </div>
+                    <div>
+                        <label>Efisiensi Transmisi</label>
+                        <input type="number" id="dynoEff" value="0.88" step="0.01" onchange="runDynoAnalysis()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="dyno-stat-grid">
+                <div class="dyno-stat-card">
+                    <span style="font-size: 9px; color: #888;">PEAK POWER (HP)</span>
+                    <div class="val" id="dynoPeakHP">0.0 <span class="unit">Wheel HP</span></div>
+                    <div style="font-size: 9px; color: #00ffff;" id="dynoPeakEngineHP">Est. Engine: 0.0 HP</div>
+                </div>
+                <div class="dyno-stat-card" style="border-color: #ffcc0033;">
+                    <span style="font-size: 9px; color: #888;">PEAK TORQUE (Nm)</span>
+                    <div class="val" style="color: #ffcc00;" id="dynoPeakTorque">0.0 <span class="unit">Nm</span></div>
+                    <div style="font-size: 9px; color: #ff8800;" id="dynoPeakSpeed">at 0 km/h</div>
+                </div>
+            </div>
+
+            <div class="panel-box">
+                <span class="section-title">KURVA DYNO (HORSEPOWER & TORSI VS KECEPATAN)</span>
+                <canvas id="dynoChart" style="max-height: 220px; width: 100%; margin-top: 6px;"></canvas>
+            </div>
+        </div>
+
+        <!-- 3. TOOLS KALKULATOR & ACOUSTIC RPM VIEW -->
+        <div id="view-tools" class="view-section">
+            <div class="tool-tabs">
+                <div class="tool-tab active" onclick="switchToolTab('rpm', this)">🎙️ Acoustic RPM</div>
+                <div class="tool-tab" onclick="switchToolTab('jetting', this)">⛽ Jetting Karbu</div>
+                <div class="tool-tab" onclick="switchToolTab('trans', this)">⚙️ Transmisi & Speed</div>
+                <div class="tool-tab" onclick="switchToolTab('compression', this)">🔩 Rasio Kompresi</div>
+            </div>
+
+            <!-- TOOL NEW: ACOUSTIC RPM METER (MIC FFT) -->
+            <div id="tool-rpm" style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="rpm-display-container">
+                    <div style="font-size: 9px; color: #888; letter-spacing: 1.5px; font-weight: bold; text-transform: uppercase;">ACOUSTIC TACHOMETER (FFT)</div>
+                    <div class="rpm-big-number" id="rpmDisplay">0</div>
+                    <div style="font-size: 10px; font-weight: bold; color: #00ffff; margin-top: 2px;">REVOLUTIONS PER MINUTE (RPM)</div>
+                    
+                    <div class="rpm-bar-bg">
+                        <div class="rpm-bar-fill" id="rpmBar"></div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; font-size: 8px; color: #666; margin-top: 4px; font-family: monospace;">
+                        <span>0</span>
+                        <span>3000</span>
+                        <span>6000</span>
+                        <span>9000</span>
+                        <span>12000</span>
+                        <span style="color: #ff3344; font-weight: bold;">15000+</span>
+                    </div>
+                </div>
+
+                <div class="panel-box">
+                    <div class="section-title">KONFIGURASI PENGUKURAN KNALPOT</div>
+                    <div class="form-grid-2">
+                        <div>
+                            <label>Tipe Mesin & Pengapian</label>
+                            <select id="rpmEngineType">
+                                <option value="0.5">4-Tak 1-Silinder (Sleep Engine / Bebek / Sport)</option>
+                                <option value="0.5">4-Tak 1-Silinder (Matic)</option>
+                                <option value="1.0" selected>2-Tak 1-Silinder (Ninja 150 / RX-King / Satria 2T)</option>
+                                <option value="1.0">4-Tak 2-Silinder Twin (250cc Twin)</option>
+                                <option value="2.0">4-Tak 4-Silinder Inline (600cc / 1000cc)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Filter Noise (Sensitivitas)</label>
+                            <select id="rpmSensitivity">
+                                <option value="-65">Sensitivitas Tinggi (Dalam Ruangan)</option>
+                                <option value="-50" selected>Sedang / Normal (Luar Ruangan)</option>
+                                <option value="-35">Rendah / Knalpot Sangat Bising</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px;">
+                        <button class="btn btn-stage" id="btnStartRpm" onclick="toggleRpmMeter()">🎙️ START MIC RPM</button>
+                        <button class="btn btn-reset" onclick="stopRpmMeter()">STOP MIC</button>
+                    </div>
+                    <div style="font-size: 9px; color: #888; text-align: center; margin-top: 6px;" id="rpmStatus">Status Mic: OFFLINE</div>
+                </div>
+
+                <div class="panel-box" style="font-size: 9.5px; color: #aaa; line-height: 1.4;">
+                    <span style="color: #00ff66; font-weight: bold;">💡 Petunjuk Penggunaan Acoustic RPM:</span><br>
+                    1. Dekatkan mikrofon HP ke arah knalpot (jarak aman ~1 meter, jauhi tiupan angin langsung).<br>
+                    2. Klik tombol **START MIC RPM** dan berikan izin akses mikrofon.<br>
+                    3. Aplikasi akan menghitung denyut frekuensi suara ledakan knalpot secara akurat tanpa sambungan kabel!
+                </div>
+            </div>
+
+            <!-- TOOL A: JETTING CALCULATOR -->
+            <div id="tool-jetting" style="display: none; flex-direction: column; gap: 8px;">
+                <div class="panel-box">
+                    <div class="section-title">⛽ KALKULATOR JETTING SPUYER / KARBURATOR</div>
+                    <div class="form-grid-2">
+                        <div>
+                            <label>Density Altitude (DA)</label>
+                            <input type="number" id="jettingDA" value="100" onchange="calcJetting()">
+                        </div>
+                        <div>
+                            <label>Suhu Udara (°C)</label>
+                            <input type="number" id="jettingTemp" value="30" onchange="calcJetting()">
+                        </div>
+                    </div>
+                    <div class="form-grid-2">
+                        <div>
+                            <label>Main Jet Saat Ini</label>
+                            <input type="number" id="jettingCurrentMJ" value="135" onchange="calcJetting()">
+                        </div>
+                        <div>
+                            <label>Pilot Jet Saat Ini</label>
+                            <input type="number" id="jettingCurrentPJ" value="42" onchange="calcJetting()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-box" style="background: #0d1a15; border-color: #00ff6644;">
+                    <div class="section-title" style="color: #00ffff;">REKOMENDASI SETELAN SPUYER</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: center; margin: 6px 0;">
+                        <div style="background: #111; padding: 8px; border-radius: 6px;">
+                            <span style="font-size: 8px; color: #888;">RECOMMENDED MAIN JET</span>
+                            <div style="font-size: 20px; font-weight: bold; color: #00ff66;" id="resRecMJ">135</div>
+                        </div>
+                        <div style="background: #111; padding: 8px; border-radius: 6px;">
+                            <span style="font-size: 8px; color: #888;">RECOMMENDED PILOT JET</span>
+                            <div style="font-size: 20px; font-weight: bold; color: #00ffff;" id="resRecPJ">42</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 11px; font-weight: bold; color: #ffcc00; margin-top: 4px;" id="jettingStatus">Kondisi campuran bensin: IDEAL</div>
+                    <div style="font-size: 9.5px; color: #bbb; margin-top: 4px; line-height: 1.3;" id="jettingAdvice">--</div>
+                </div>
+            </div>
+
+            <!-- TOOL B: TRANSMISSION & TOP SPEED CALCULATOR -->
+            <div id="tool-trans" style="display: none; flex-direction: column; gap: 8px;">
+                <div class="panel-box">
+                    <div class="section-title">⚙️ KALKULATOR GEARED TOP SPEED TEORETIS</div>
+                    
+                    <span style="font-size: 9px; color: #00ff66; font-weight: bold;">PROFIL BAN:</span>
+                    <div class="form-grid-3">
+                        <div><label>Lebar (mm)</label><input type="number" id="tireWidth" value="90" onchange="calcTransmission()"></div>
+                        <div><label>Rasio (%)</label><input type="number" id="tireAspect" value="80" onchange="calcTransmission()"></div>
+                        <div><label>Velg (Inch)</label><input type="number" id="tireRim" value="17" onchange="calcTransmission()"></div>
+                    </div>
+
+                    <span style="font-size: 9px; color: #00ff66; font-weight: bold;">RASIO DRIVETRAIN & GEARBOX:</span>
+                    <div class="form-grid-3">
+                        <div><label>Rasio Primer</label><input type="number" id="primaryRatio" value="3.21" step="0.01" onchange="calcTransmission()"></div>
+                        <div><label>Gear Depan</label><input type="number" id="sprocketFront" value="14" onchange="calcTransmission()"></div>
+                        <div><label>Gear Belakang</label><input type="number" id="sprocketRear" value="36" onchange="calcTransmission()"></div>
+                    </div>
+
+                    <div class="form-grid-2">
+                        <div><label>RPM Limit Mesin</label><input type="number" id="maxRpm" value="12000" step="500" onchange="calcTransmission()"></div>
+                        <div><label>Jumlah Gigi</label>
+                            <select id="totalGears" onchange="calcTransmission()">
+                                <option value="4">4 Speed</option>
+                                <option value="5">5 Speed</option>
+                                <option value="6" selected>6 Speed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <span style="font-size: 9px; color: #00ff66; font-weight: bold;">RASIO GIGI RASIO (1 - 6):</span>
+                    <div class="form-grid-3">
+                        <div><label>Gigi 1</label><input type="number" id="g1Ratio" value="3.00" step="0.01" onchange="calcTransmission()"></div>
+                        <div><label>Gigi 2</label><input type="number" id="g2Ratio" value="1.93" step="0.01" onchange="calcTransmission()"></div>
+                        <div><label>Gigi 3</label><input type="number" id="g3Ratio" value="1.43" step="0.01" onchange="calcTransmission()"></div>
+                    </div>
+                    <div class="form-grid-3">
+                        <div><label>Gigi 4</label><input type="number" id="g4Ratio" value="1.14" step="0.01" onchange="calcTransmission()"></div>
+                        <div><label>Gigi 5</label><input type="number" id="g5Ratio" value="0.96" step="0.01" onchange="calcTransmission()"></div>
+                        <div><label>Gigi 6</label><input type="number" id="g6Ratio" value="0.84" step="0.01" onchange="calcTransmission()"></div>
+                    </div>
+                </div>
+
+                <div class="panel-box">
+                    <div class="section-title">TABEL KECEPATAN MAKSIMAL PER GIGI</div>
+                    <table class="gear-table">
+                        <thead>
+                            <tr>
+                                <th>GIGI</th>
+                                <th>RASIO</th>
+                                <th>TOTAL RATIO</th>
+                                <th>TOP SPEED</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gearTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TOOL C: COMPRESSION CALCULATOR -->
+            <div id="tool-compression" style="display: none; flex-direction: column; gap: 8px;">
+                <div class="panel-box">
+                    <div class="section-title">🔩 KALKULATOR RASIO KOMPRESI & KAPASITAS MESIN</div>
+                    <div class="form-grid-2">
+                        <div><label>Diameter Piston / Bore (mm)</label><input type="number" id="compBore" value="62.0" step="0.1" onchange="calcCompression()"></div>
+                        <div><label>Langkah Piston / Stroke (mm)</label><input type="number" id="compStroke" value="58.0" step="0.1" onchange="calcCompression()"></div>
+                    </div>
+                    <div class="form-grid-2">
+                        <div><label>Volume Dome Head (cc)</label><input type="number" id="compDome" value="14.5" step="0.1" onchange="calcCompression()"></div>
+                        <div><label>Tebal Paking Gasket (mm)</label><input type="number" id="compGasket" value="0.5" step="0.1" onchange="calcCompression()"></div>
+                    </div>
+                    <div class="form-grid-2">
+                        <div><label>Deck Height Piston (mm)</label><input type="number" id="compDeck" value="0.3" step="0.1" onchange="calcCompression()"></div>
+                        <div><label>Durasi In Closing (ABDC °)</label><input type="number" id="compCamAbdc" value="55" step="1" onchange="calcCompression()"></div>
+                    </div>
+                </div>
+
+                <div class="panel-box" style="background: #112211; border-color: #00ff6644;">
+                    <div class="section-title" style="color: #00ff66;">HASIL KALKULASI KOMPRESI</div>
+                    <div class="dyno-stat-grid" style="margin-top: 6px;">
+                        <div style="background: #111; padding: 6px; border-radius: 6px; text-align: center;">
+                            <span style="font-size: 8px; color: #888;">KAPASITAS MESIN</span>
+                            <div style="font-size: 16px; font-weight: bold; color: #00ffff;" id="resEngineCC">0.0 cc</div>
+                        </div>
+                        <div style="background: #111; padding: 6px; border-radius: 6px; text-align: center;">
+                            <span style="font-size: 8px; color: #888;">STATIC COMPRESSION (SCR)</span>
+                            <div style="font-size: 16px; font-weight: bold; color: #00ff66;" id="resSCR">0.0 : 1</div>
+                        </div>
+                    </div>
+                    <div class="dyno-stat-grid">
+                        <div style="background: #111; padding: 6px; border-radius: 6px; text-align: center;">
+                            <span style="font-size: 8px; color: #888;">DYNAMIC COMPRESSION (DCR)</span>
+                            <div style="font-size: 16px; font-weight: bold; color: #ffcc00;" id="resDCR">0.0 : 1</div>
+                        </div>
+                        <div style="background: #111; padding: 6px; border-radius: 6px; text-align: center;">
+                            <span style="font-size: 8px; color: #888;">REKOMENDASI BBM</span>
+                            <div style="font-size: 12px; font-weight: bold; color: #ff3344; margin-top: 3px;" id="resFuelFuel">Pertalite / RON 90</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. TUNER LOGBOOK VIEW -->
+        <div id="view-log" class="view-section">
+            <div class="panel-box">
+                <div class="section-title">SPEK MOTOR & SETELAN RUN INI</div>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <input type="text" id="specMotor" placeholder="Contoh: Ninja 150 / Sleep Engine 200cc">
+                    <input type="text" id="specSettings" placeholder="Setelan: Roller 8g / Karbu PWK 38 / CDi Standar">
+                </div>
+            </div>
+            <div class="panel-box">
+                <div class="section-title">RIWAYAT TEST RUN</div>
+                <div id="historyList"></div>
+            </div>
+        </div>
+
+        <!-- 5. COMPARE / GHOST MODE VIEW -->
+        <div id="view-compare" class="view-section">
+            <div class="panel-box">
+                <div class="section-title">GHOST MODE - ADU GRAFIK SETELAN MOTOR</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+                    <div>
+                        <span style="font-size: 9px; color: #00ff66;">RUN A (HIJAU):</span>
+                        <select id="compareRunA" style="width: 100%; margin-top: 2px;"></select>
+                    </div>
+                    <div>
+                        <span style="font-size: 9px; color: #00ffff;">RUN B (CYAN):</span>
+                        <select id="compareRunB" style="width: 100%; margin-top: 2px;"></select>
+                    </div>
+                </div>
+                <button class="btn btn-action" style="width: 100%; background: #112a22; color: #00ff66;" onclick="renderComparisonChart()">📊 ADU GRAFIK SEKARANG</button>
+            </div>
+
+            <div class="panel-box" id="compareChartPanel" style="display: none;">
+                <span class="section-title">PERBANDINGAN AKSELERASI</span>
+                <canvas id="compareChart" style="max-height: 180px; width: 100%;"></canvas>
+            </div>
+        </div>
+
+        <!-- 6. SETTINGS VIEW -->
+        <div id="view-settings" class="view-section">
+            <div class="section-title" style="font-size: 14px; color: #ffcc00;">PENGATURAN SYSTEM</div>
+
+            <div class="section-title" style="margin-top: 6px;">UMUM & KESELAMATAN</div>
+            <div class="setting-card">
+                <span class="setting-label">Satuan Kecepatan</span>
+                <select id="speedUnit" style="width: auto;" onchange="saveSettings()">
+                    <option value="kmh" selected>km/h</option>
+                    <option value="mph">mph</option>
+                </select>
+            </div>
+            <div class="setting-card">
+                <span class="setting-label">Asisten Suara Hasil (Voice Announcer)</span>
+                <input type="checkbox" id="voiceAnnounceToggle" class="custom-checkbox" checked onchange="saveSettings()">
+            </div>
+            <div class="setting-card">
+                <span class="setting-label">Suara Beep & Getar</span>
+                <input type="checkbox" id="soundVibToggle" class="custom-checkbox" checked onchange="saveSettings()">
+            </div>
+            <div class="setting-card">
+                <span class="setting-label">Layar Tetap Menyala</span>
+                <input type="checkbox" id="keepAwakeToggle" class="custom-checkbox" checked onchange="handleKeepAwakeToggle()">
+            </div>
+
+            <div class="section-title" style="margin-top: 10px; color: #00ffff;">KUALITAS SINYAL GPS</div>
+            <div class="setting-card">
+                <span class="setting-label">Wajib Sinyal Bagus untuk Start</span>
+                <input type="checkbox" id="requireGoodGpsToggle" class="custom-checkbox" checked onchange="saveSettings()">
+            </div>
+            <div class="setting-card" style="flex-direction: column; align-items: flex-start; gap: 6px;">
+                <span class="setting-label" id="accuracyLabel">Batas Akurasi Minimum 🔒</span>
+                <select id="gpsAccuracyLimit" style="width: 100%;" onchange="handleAccuracyChange(this)">
+                    <option value="50">Kurang (50 m)</option>
+                    <option value="30">Sedang (30 m)</option>
+                    <option value="15">Akurat (15 m) 🔒</option>
+                    <option value="5">Sangat Akurat (5 m) 🔒</option>
+                    <option value="2">Presisi Tinggi (2 m) 🔒</option>
+                </select>
+            </div>
+
+            <div class="section-title" style="margin-top: 10px;">DATA & EKSPOR</div>
+            <div class="setting-card">
+                <span class="setting-label">Total Bobot Motor + Joki (KG)</span>
+                <input type="number" id="totalWeight" value="130" style="width: 70px; text-align: center;" onchange="saveSettings()">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px;">
+                <button class="btn btn-action" onclick="exportCSV()">📥 EXPORT EXCEL (CSV)</button>
+                <button class="btn btn-action" onclick="document.getElementById('importFile').click()">📤 IMPORT CSV</button>
+                <input type="file" id="importFile" style="display: none;" accept=".csv" onchange="importCSV(event)">
+            </div>
+
+            <!-- PRO DEVELOPER CARD CREDITS -->
+            <div class="dev-card" style="margin-top: 15px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 42px; height: 42px; border-radius: 10px; background: #112a1a; border: 1.5px solid #00ff66; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 0 10px rgba(0,255,102,0.4);">
+                        🏎️
+                    </div>
+                    <div>
+                        <div style="font-size: 8px; color: #00ffff; font-weight: bold; letter-spacing: 1px; text-transform: uppercase;">Lead Developer & System Architect</div>
+                        <div style="font-size: 15px; font-weight: 900; color: #ffffff; text-shadow: 0 0 8px rgba(0,255,102,0.5);">JIDAN AUTOTOOLS</div>
+                        <div style="font-size: 8.5px; color: #888; margin-top: 1px;">RaceBox Pro Engineering Labs • Telemetry & Acoustic DSP</div>
+                    </div>
+                </div>
+                <!-- TOMBOL CHAT WHATSAPP DI CARD DEV -->
+                <a href="https://wa.me/6281910461290?text=Halo%20JIDAN%20AUTOTOOLS,%20saya%20pengguna%20RaceBox%20Pro" target="_blank" class="btn btn-stage" style="display: block; text-align: center; margin-top: 10px; text-decoration: none; background: #123d20; border-color: #25d366; color: #25d366;">
+                    💬 Chat WhatsApp Developer
+                </a>
+                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #222222; display: flex; justify-content: space-between; font-size: 8.5px; color: #aaa; font-family: monospace;">
+                    <span>CORE: <b>WebAudio FFT + GPS 1Hz/20Hz</b></span>
+                    <span style="color: #00ff66;">VER: <b>v1.5 PRO ULTIMATE</b></span>
+                </div>
+            </div>
+
+            <button class="btn btn-action" style="margin-top: 15px; border-color: #ff3344; color: #ff3344; background: #1a080a; width: 100%;" onclick="clearAllDataLogger()">🗑️ HAPUS SEMUA LOGBOOK</button>
+        </div>
+
+        <!-- 7. LOGIN VIEW -->
+        <div id="view-login" class="view-section">
+            <div class="panel-box" style="max-width: 400px; margin: 0 auto; width: 100%;">
+                <div class="section-title">🔑 LOGIN AKUN RACEBOX PRO</div>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                    <div>
+                        <label>Email / Username</label>
+                        <input type="email" id="loginEmail" placeholder="user@example.com">
+                    </div>
+                    <div>
+                        <label>Password</label>
+                        <input type="password" id="loginPassword" placeholder="********">
+                    </div>
+                    <button class="btn btn-stage" style="margin-top: 6px;" onclick="handleLogin()">MASUK SEKARANG</button>
+                    <div style="text-align: center; font-size: 10px; color: #888; margin-top: 6px;">
+                        Belum punya akun? <span style="color: #00ff66; cursor: pointer; text-decoration: underline;" onclick="switchTab('register', document.querySelectorAll('.nav-item')[8])">Daftar di sini</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. REGISTER VIEW -->
+        <div id="view-register" class="view-section">
+            <div class="panel-box" style="max-width: 400px; margin: 0 auto; width: 100%;">
+                <div class="section-title">📝 REGISTRASI AKUN BARU</div>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                    <div>
+                        <label>Nama Lengkap</label>
+                        <input type="text" id="regName" placeholder="Nama Joki / Tuner">
+                    </div>
+                    <div>
+                        <label>Email</label>
+                        <input type="email" id="regEmail" placeholder="user@example.com">
+                    </div>
+                    <div>
+                        <label>Password</label>
+                        <input type="password" id="regPassword" placeholder="********">
+                    </div>
+                    <button class="btn btn-save" style="margin-top: 6px;" onclick="handleRegister()">DAFTAR AKUN FREE</button>
+                    <div style="text-align: center; font-size: 10px; color: #888; margin-top: 6px;">
+                        Sudah punya akun? <span style="color: #00ff66; cursor: pointer; text-decoration: underline;" onclick="switchTab('login', document.querySelectorAll('.nav-item')[7])">Login di sini</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 9. ACCOUNT & PRO UPGRADE VIEW -->
+        <div id="view-account" class="view-section">
+            <div class="panel-box">
+                <div class="section-title">👤 MANAJEMEN AKUN & UPGRADE PRO</div>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                    <div style="background: #111; padding: 10px; border-radius: 8px; border: 1px solid #333;">
+                        <div style="font-size: 9px; color: #888;">STATUS AKUN SAAT INI</div>
+                        <div style="font-size: 14px; font-weight: bold; color: #00ff66; margin-top: 2px;" id="accountStatusDisplay">FREE TIER (Fitur Terbatas)</div>
+                        <div style="font-size: 9.5px; color: #aaa; margin-top: 2px;" id="accountEmailDisplay">Email: user@example.com</div>
+                    </div>
+
+                    <div id="freeUpgradeSection">
+                        <div class="section-title" style="margin-top: 10px; color: #ffcc00;">PILIHAN UPGRADE KE PRO (FITUR LENGKAP)</div>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px;">
+                            <div class="panel-box" style="text-align: center; cursor: pointer; border-color: #333;" onclick="selectProPackage('1 Bulan', 25000)">
+                                <div style="font-size: 9px; color: #888;">1 BULAN</div>
+                                <div style="font-size: 14px; font-weight: bold; color: #00ff66; margin-top: 4px;">Rp 25K</div>
+                            </div>
+                            <div class="panel-box" style="text-align: center; cursor: pointer; border-color: #00ff66;" onclick="selectProPackage('1 Tahun', 149000)">
+                                <div style="font-size: 9px; color: #00ff66;">1 TAHUN</div>
+                                <div style="font-size: 14px; font-weight: bold; color: #00ff66; margin-top: 4px;">Rp 149K</div>
+                            </div>
+                            <div class="panel-box" style="text-align: center; cursor: pointer; border-color: #00ffff;" onclick="selectProPackage('Permanen', 299000)">
+                                <div style="font-size: 9px; color: #00ffff;">PERMANEN</div>
+                                <div style="font-size: 14px; font-weight: bold; color: #00ffff; margin-top: 4px;">Rp 299K</div>
+                            </div>
+                        </div>
+
+                        <!-- QR Payment Box -->
+                        <div class="panel-box" id="qrPaymentBox" style="display: none; margin-top: 10px; text-align: center; background: #0d1a15; border-color: #00ff6666;">
+                            <div class="section-title" style="justify-content: center; color: #00ffff;">PEMBAYARAN QRIS / QR CODE</div>
+                            <div style="font-size: 10px; color: #ccc; margin-bottom: 6px;">Paket dipilih: <b id="selectedPackageName" style="color:#00ff66;">-</b> (Rp <b id="selectedPackagePrice">-</b>)</div>
+                            <div style="background: #fff; padding: 10px; display: inline-block; border-radius: 8px; margin: 6px 0;">
+                                <img src="https://res.cloudinary.com/dtz0urit6/image/upload/q_auto:best,f_jpg/cloudinary-tools-uploads/avy3wngoq6e2lhzlwpui" style="width: 130px; height: 130px; display: block;">
+                            </div>
+                            <div style="font-size: 9px; color: #ffcc00; margin-top: 4px;">Scan QR di atas menggunakan M-Banking / E-Wallet (GoPay, OVO, Dana, BCA, QRIS).</div>
+                            <div style="font-size: 8.5px; color: #888; margin-top: 2px;">Pembayaran hanya menggunakan QR saja. Setelah berhasil, klik tombol di bawah untuk konfirmasi ke Developer via WA.</div>
+                            <button class="btn btn-stage" style="width: 100%; margin-top: 8px; background: #123d20; border-color: #25d366; color: #25d366;" onclick="confirmPaymentWA()">💬 Konfirmasi & Kirim Bukti ke WA Dev</button>
+                        </div>
+                    </div>
+
+                    <div id="proActiveSection" style="display: none; text-align: center; padding: 15px; background: #0d1a15; border-radius: 8px; border: 1px solid #00ff66;">
+                        <div style="font-size: 16px; font-weight: bold; color: #00ff66;">🚀 AKUN ANDA ADALAH MEMBER PRO!</div>
+                        <div style="font-size: 10px; color: #ccc; margin-top: 4px;">Semua fitur Dyno, Tools Kalibrasi, Grafik Adu, dan Akurasi Presisi Tinggi sudah terbuka penuh.</div>
+                    </div>
+
+                    <button class="btn btn-reset" style="margin-top: 10px; border-color: #ff3344; color: #ff3344; background: #1a080a;" onclick="handleLogout()">🚪 KELUAR AKUN (LOGOUT)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Time Slip Struk -->
+    <div class="modal" id="slipModal">
+        <div class="time-slip" id="slipCard">
+            <div style="text-align: center; font-weight: bold; border-bottom: 1px dashed #000; padding-bottom: 4px;">
+                🏁 RACEBOX PRO TELEMETRY
+            </div>
+            <div style="font-size: 9px; margin: 4px 0;" id="slipDate">--/--/----</div>
+            <div style="font-size: 10px; font-weight: bold;" id="slipMotor">Motor: -</div>
+            <div style="font-size: 9px; color: #333;" id="slipWeatherInfo">Cuaca: --°C | DA: --m</div>
+            <hr style="border: none; border-top: 1px dashed #000; margin: 4px 0;">
+            <div style="display: flex; justify-content: space-between; font-size: 10px;"><span>Reaction Time (RT):</span><span id="slipRT">--</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 10px;"><span>60ft Time:</span><span id="slip60ft">--</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 10px;"><span>201m Time:</span><span id="slip201m">--</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin: 4px 0; border-top: 1px solid #000;"><span id="slipTargetLabel">500m Time:</span><span id="slipTargetVal">--</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 10px;"><span>Top Speed:</span><span id="slipTopSpeed">--</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 10px;"><span>Peak G-Accel:</span><span id="slipPeakG">--</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #444;"><span>Est. Horsepower:</span><span id="slipHP">-- HP</span></div>
+            <div style="text-align: center; font-size: 8px; margin-top: 6px; border-top: 1px dashed #000; padding-top: 4px;">OFFICIAL GPS TELEMETRY VERIFIED</div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn btn-save" onclick="downloadSlipImage()">📸 SIMPAN UNTUK IG STORY</button>
+            <button class="btn btn-reset" onclick="document.getElementById('slipModal').style.display='none'">TUTUP</button>
+        </div>
+    </div>
+
+    <script>
+        // NOMOR WHATSAPP DEVELOPER (GANTI DENGAN NOMOR WA ASLI ANDA)
+        const DEV_WA_NUMBER = "6281910461290";
+
+        // Status Pengguna & Autentikasi
+        let currentUser = {
+            isLoggedIn: false,
+            email: "",
+            name: "",
+            isPro: false,
+            proPackage: null,
+            paymentPending: false
+        };
+
+        // Register Pengguna ke Database Server[cite: 1]
+        async function handleRegister() {
+            let nama = document.getElementById('regName').value.trim();
+            let email = document.getElementById('regEmail').value.trim();
+            let pass = document.getElementById('regPassword').value.trim();
+
+            if (!nama || !email || !pass) return alert("⚠️ Mohon isi semua kolom registrasi!");
+
+            try {
+                let res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nama, email, pass })
+                });
+                let data = await res.json();
+                if (res.ok) {
+                    alert("✅ Registrasi Berhasil! Silakan login.");
+                    switchTab('login', document.querySelectorAll('.nav-item')[7]);
+                } else {
+                    alert("❌ " + data.message);
+                }
+            } catch (err) {
+                alert("Gagal terhubung ke server.");
+            }
+        }
+
+        // Login Pengguna via Database Server[cite: 1]
+        async function handleLogin() {
+            let email = document.getElementById('loginEmail').value.trim();
+            let pass = document.getElementById('loginPassword').value.trim();
+
+            if (!email || !pass) return alert("⚠️ Masukkan email dan password!");
+
+            try {
+                let res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, pass })
+                });
+                let data = await res.json();
+
+                if (res.ok && data.user) {
+                    currentUser = {
+                        isLoggedIn: true,
+                        id: data.user._id,
+                        email: data.user.email,
+                        name: data.user.nama,
+                        isPro: data.user.statusAkun === 'Pro',
+                        paketPro: data.user.paketPro
+                    };
+                    localStorage.setItem('racebox_current_user', JSON.stringify(currentUser));
+                    updateAuthUI();
+                    alert(`✅ Login Berhasil! Selamat datang, ${currentUser.name}`);
+                    switchTab('drag', document.querySelectorAll('.nav-item')[0]);
+                } else {
+                    alert("❌ " + data.message);
+                }
+            } catch (err) {
+                alert("Gagal terhubung ke server.");
+            }
+        }
+
+        function handleLogout() {
+            currentUser = { isLoggedIn: false, email: "", name: "", isPro: false, proPackage: null, paymentPending: false };
+            localStorage.removeItem('racebox_current_user');
+            updateAuthUI();
+            alert("🚪 Berhasil Logout.");
+            switchTab('login', document.querySelectorAll('.nav-item')[7]);
+        }
+
+        function updateAuthUI() {
+            let navAccount = document.getElementById('navAccount');
+            let dynoLabel = document.getElementById('navDynoLabel');
+            let toolsLabel = document.getElementById('navToolsLabel');
+            let compareLabel = document.getElementById('navCompareLabel');
+            let accSelect = document.getElementById('gpsAccuracyLimit');
+
+            // Update gambar gembok di bagian menu sidebar & opsi akurasi
+            if (currentUser.isPro) {
+                if (dynoLabel) dynoLabel.innerText = "Dyno";
+                if (toolsLabel) toolsLabel.innerText = "Tools";
+                if (compareLabel) compareLabel.innerText = "Adu";
+                if (accSelect) {
+                    accSelect.options[2].text = "Akurat (15 m)";
+                    accSelect.options[3].text = "Sangat Akurat (5 m)";
+                    accSelect.options[4].text = "Presisi Tinggi (2 m)";
+                }
+            } else {
+                if (dynoLabel) dynoLabel.innerText = "Dyno 🔒";
+                if (toolsLabel) toolsLabel.innerText = "Tools 🔒";
+                if (compareLabel) compareLabel.innerText = "Adu 🔒";
+                if (accSelect) {
+                    accSelect.options[2].text = "Akurat (15 m) 🔒";
+                    accSelect.options[3].text = "Sangat Akurat (5 m) 🔒";
+                    accSelect.options[4].text = "Presisi Tinggi (2 m) 🔒";
+                }
+            }
+
+            if (currentUser.isLoggedIn) {
+                if (navAccount) navAccount.style.display = 'flex';
+                document.getElementById('accountEmailDisplay').innerText = `Email: ${currentUser.email} (${currentUser.name})`;
+                if (currentUser.isPro) {
+                    document.getElementById('accountStatusDisplay').innerText = "PRO MEMBER AKTIF 🚀";
+                    document.getElementById('accountStatusDisplay').style.color = "#00ff66";
+                    document.getElementById('freeUpgradeSection').style.display = 'none';
+                    document.getElementById('proActiveSection').style.display = 'block';
+                } else {
+                    document.getElementById('accountStatusDisplay').innerText = currentUser.paymentPending ? "MENUNGGU VERIFIKASI PEMBAYARAN PRO ⏳" : "FREE TIER (Fitur Terbatas)";
+                    document.getElementById('accountStatusDisplay').style.color = currentUser.paymentPending ? "#ffcc00" : "#00ff66";
+                    document.getElementById('freeUpgradeSection').style.display = 'block';
+                    document.getElementById('proActiveSection').style.display = 'none';
+                }
+            } else {
+                if (navAccount) navAccount.style.display = 'none';
+            }
+        }
+
+        function selectProPackage(packageName, price) {
+            document.getElementById('selectedPackageName').innerText = packageName;
+            document.getElementById('selectedPackagePrice').innerText = price.toLocaleString('id-ID');
+            document.getElementById('qrPaymentBox').style.display = 'block';
+        }
+
+        // Konfirmasi Pembayaran Pro ke Backend + WhatsApp[cite: 1]
+        async function confirmPaymentWA() {
+            if (!currentUser.isLoggedIn) return alert("Silakan login terlebih dahulu!");
+
+            let packageName = document.getElementById('selectedPackageName').innerText;
+            let harga = packageName === '1 Bulan' ? 25000 : (packageName === '1 Tahun' ? 149000 : 299000);
+
+            // Kirim data pembayaran ke database agar muncul di Antrean indexx.html Developer[cite: 1]
+            await fetch('/api/user/request-pro', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: currentUser.id, paketDipilih: packageName, harga })
+            });
+
+            let message = `Halo Developer RaceBox Pro,\n\nSaya telah melakukan pembayaran untuk upgrade Pro:\n- Nama: ${currentUser.name}\n- Email: ${currentUser.email}\n- Paket: ${packageName} (Rp ${harga.toLocaleString('id-ID')})\n\nMohon untuk dikonfirmasi & diaktifkan. Terima kasih!`;
+            window.open(`https://wa.me/${DEV_WA_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
+        }
+
+        // Fungsi Menampilkan Pop-Up Paywall
+        function showPaywallModal(featureName) {
+            alert(`🔒 FITUR PRO TERKUNCI!\n\nFitur "${featureName}" hanya tersedia untuk member RaceBox Pro.\nSilakan login dan upgrade akun Anda (1 Bulan 25K, 1 Tahun 149K, Permanen 299K) via menu Akun!`);
+            switchTab('account', document.getElementById('navAccount'));
+        }
+
+        // Service Worker PWA
+        if ('serviceWorker' in navigator) {
+            const swCode = `self.addEventListener('fetch', function(e) { e.respondWith(fetch(e.request).catch(function() { return caches.match(e.request); })); });`;
+            const blob = new Blob([swCode], { type: 'application/javascript' });
+            navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+        }
+
+        // Global Variables
+        let currentLat = null, currentLon = null, currentSpeedKmh = 0, gpsAccuracy = 999;
+        let currentGForce = 0, peakGForce = 0;
+        let dragArmed = false, dragRunning = false, dragStartTime = 0, greenLightTime = 0, reactionTime = null;
+        let timerInterval = null, distanceTraveled = 0, startLat = null, startLon = null;
+        let time60ft = null, time201m = null, time402m = null, targetFinishTime = null, topSpeedRecord = 0;
+        let speedDataLog = [];
+        let speedChartInstance = null, compareChartInstance = null, dynoChartInstance = null;
+        let wakeLockObj = null;
+
+        // Acoustic RPM Variables
+        let audioCtx = null, analyser = null, micStream = null, isRpmRunning = false;
+
+        // Data Cuaca Global
+        let currentWeather = { temp: 30, humidity: 70, pressure: 1010, da: 100, hint: 'Belum ada data' };
+        let weatherFetched = false;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            let savedUser = localStorage.getItem('racebox_current_user');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+            }
+            updateAuthUI();
+            loadSettings();
+            loadHistoryFromLocalStorage();
+            initSensors();
+            calcJetting();
+            calcTransmission();
+            calcCompression();
+            if (document.getElementById('keepAwakeToggle').checked) requestWakeLock();
+        });
+
+        // --- TAB SWITCHING LOGIC ---
+        function switchTab(tabId, el) {
+            const proTabs = ['dyno', 'tools', 'compare'];
+
+            if (proTabs.includes(tabId) && !currentUser.isPro) {
+                showPaywallModal(tabId.toUpperCase());
+                return;
+            }
+
+            document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+
+            let targetView = document.getElementById('view-' + tabId);
+            if (targetView) targetView.classList.add('active');
+
+            let activeBtn = el || (window.event ? window.event.currentTarget : null);
+            if (activeBtn && activeBtn.classList) {
+                activeBtn.classList.add('active');
+            }
+
+            if (tabId === 'log') loadHistoryFromLocalStorage();
+            if (tabId === 'compare') populateCompareDropdowns();
+            if (tabId === 'dyno') runDynoAnalysis();
+            if (tabId === 'account') updateAuthUI();
+        }
+
+        function switchToolTab(toolId, el) {
+            document.querySelectorAll('.tool-tab').forEach(tab => tab.classList.remove('active'));
+            document.getElementById('tool-rpm').style.display = 'none';
+            document.getElementById('tool-jetting').style.display = 'none';
+            document.getElementById('tool-trans').style.display = 'none';
+            document.getElementById('tool-compression').style.display = 'none';
+
+            const targetTool = document.getElementById('tool-' + toolId);
+            if (targetTool) targetTool.style.display = 'flex';
+
+            let activeBtn = el || (window.event ? window.event.currentTarget : null);
+            if (activeBtn && activeBtn.classList) {
+                activeBtn.classList.add('active');
+            }
+            if (toolId !== 'rpm' && isRpmRunning) stopRpmMeter();
+        }
+
+        // --- ACOUSTIC RPM METER (MIC FFT ENGINE) ---
+        async function toggleRpmMeter() {
+            if (isRpmRunning) {
+                stopRpmMeter();
+            } else {
+                startRpmMeter();
+            }
+        }
+
+        async function startRpmMeter() {
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 4096;
+
+                let source = audioCtx.createMediaStreamSource(micStream);
+                source.connect(analyser);
+
+                isRpmRunning = true;
+                document.getElementById('btnStartRpm').innerText = "⏸️ PAUSE MIC";
+                document.getElementById('rpmStatus').innerText = "🎙️ RECORDING KNALPOT...";
+                document.getElementById('rpmStatus').style.color = "#00ff66";
+
+                updateRpmLoop();
+            } catch (err) {
+                alert("⚠️ Gagal mengakses Mikrofon HP: " + err.message);
+            }
+        }
+
+        function stopRpmMeter() {
+            isRpmRunning = false;
+            if (micStream) micStream.getTracks().forEach(t => t.stop());
+            if (audioCtx) audioCtx.close();
+            document.getElementById('btnStartRpm').innerText = "🎙️ START MIC RPM";
+            document.getElementById('rpmStatus').innerText = "Status Mic: OFFLINE";
+            document.getElementById('rpmStatus').style.color = "#888";
+            document.getElementById('rpmDisplay').innerText = "0";
+            document.getElementById('rpmBar').style.width = "0%";
+        }
+
+        function updateRpmLoop() {
+            if (!isRpmRunning) return;
+
+            let bufferLength = analyser.frequencyBinCount;
+            let dataArray = new Float32Array(bufferLength);
+            analyser.getFloatFrequencyData(dataArray);
+
+            let sampleRate = audioCtx.sampleRate;
+            let nyquist = sampleRate / 2;
+
+            let minFreq = 15;
+            let maxFreq = 350;
+            let minIndex = Math.floor((minFreq / nyquist) * bufferLength);
+            let maxIndex = Math.floor((maxFreq / nyquist) * bufferLength);
+
+            let maxVal = -Infinity;
+            let maxIndexFound = -1;
+
+            for (let i = minIndex; i <= maxIndex; i++) {
+                if (dataArray[i] > maxVal) {
+                    maxVal = dataArray[i];
+                    maxIndexFound = i;
+                }
+            }
+
+            let threshold = parseFloat(document.getElementById('rpmSensitivity').value) || -50;
+
+            if (maxVal > threshold && maxIndexFound !== -1) {
+                let dominantFreq = maxIndexFound * (sampleRate / analyser.fftSize);
+                let ppr = parseFloat(document.getElementById('rpmEngineType').value) || 1.0;
+                
+                let calculatedRpm = Math.round((dominantFreq * 60) / ppr);
+
+                if (calculatedRpm > 600 && calculatedRpm < 20000) {
+                    document.getElementById('rpmDisplay').innerText = calculatedRpm;
+
+                    let percent = Math.min(100, (calculatedRpm / 15000) * 100);
+                    document.getElementById('rpmBar').style.width = percent + "%";
+                }
+            }
+
+            requestAnimationFrame(updateRpmLoop);
+        }
+
+        // --- HARDWARE SENSORS ---
+        function initSensors() {
+            if (window.DeviceMotionEvent) {
+                window.addEventListener('devicemotion', (e) => {
+                    let acc = e.accelerationIncludingGravity;
+                    if (acc && acc.x !== null) {
+                        let gX = acc.x / 9.81, gY = acc.y / 9.81, gZ = acc.z / 9.81;
+                        let netG = Math.abs(Math.sqrt(gX*gX + gY*gY + gZ*gZ) - 1.0);
+                        currentGForce = netG;
+                        document.getElementById('dragGForce').innerText = currentGForce.toFixed(2) + " G";
+                        if (dragRunning && currentGForce > peakGForce) peakGForce = currentGForce;
+                    }
+                });
+            }
+
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', (e) => {
+                    let pitch = e.beta;
+                    if (pitch !== null) {
+                        let slopePercent = Math.tan(pitch * Math.PI / 180) * 100;
+                        let el = document.getElementById('slopeStatus');
+                        el.innerText = `📐 Kemiringan: ${pitch.toFixed(1)}° (${slopePercent.toFixed(1)}%)`;
+                        el.style.color = Math.abs(slopePercent) > 1.5 ? '#ff3344' : '#00ff66';
+                    }
+                });
+            }
+        }
+
+        // --- GEOLOCATION & WEATHER INTEGRATION ---
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(pos => {
+                currentLat = pos.coords.latitude;
+                currentLon = pos.coords.longitude;
+                gpsAccuracy = Math.round(pos.coords.accuracy);
+                let spd = pos.coords.speed;
+                currentSpeedKmh = spd !== null && !isNaN(spd) ? spd * 3.6 : 0;
+
+                let spdObj = getFormattedSpeed(currentSpeedKmh);
+                document.getElementById('gpsStatus').innerText = `📡 ${gpsAccuracy}m Akurat`;
+                document.getElementById('dragSpeed').innerText = `${spdObj.val} ${spdObj.label}`;
+
+                if (!weatherFetched && currentLat && currentLon) {
+                    fetchWeatherData(currentLat, currentLon);
+                    weatherFetched = true;
+                }
+
+                if (dragArmed && !dragRunning && currentSpeedKmh > 1.5) {
+                    startDragTimer();
+                }
+
+                if (dragRunning && startLat !== null) {
+                    distanceTraveled = calculateDistance(startLat, startLon, currentLat, currentLon);
+                    document.getElementById('dragDistance').innerText = distanceTraveled.toFixed(1) + " m";
+                    let elapsed = (performance.now() - dragStartTime) / 1000;
+                    speedDataLog.push({ time: elapsed, speed: spdObj.val, rawSpeedKmh: currentSpeedKmh });
+
+                    let targetDist = parseFloat(document.getElementById('targetDistance').value);
+
+                    if (!time60ft && distanceTraveled >= 18.28) { 
+                        time60ft = elapsed; 
+                        document.getElementById('res60ft').innerText = time60ft.toFixed(2) + " s"; 
+                    }
+                    if (!time201m && distanceTraveled >= 201.0) { 
+                        time201m = elapsed; 
+                        document.getElementById('res201m').innerText = time201m.toFixed(2) + " s"; 
+                    }
+                    if (!targetFinishTime && distanceTraveled >= targetDist) {
+                        targetFinishTime = elapsed;
+                        topSpeedRecord = spdObj.val;
+                        document.getElementById('resTarget').innerText = targetFinishTime.toFixed(2) + " s";
+                        document.getElementById('resTopSpeed').innerText = `${topSpeedRecord} ${spdObj.label}`;
+                        stopDragTimer();
+                    }
+                }
+            }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+        }
+
+        async function fetchWeatherData(lat, lon) {
+            try {
+                let res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure`);
+                let data = await res.json();
+                
+                if (data && data.current) {
+                    let temp = data.current.temperature_2m;
+                    let humidity = data.current.relative_humidity_2m;
+                    let pressure = data.current.surface_pressure;
+
+                    let pressureAltFt = (1013.25 - pressure) * 30;
+                    let isaTempC = 15 - (0.0019812 * pressureAltFt);
+                    let daFt = pressureAltFt + (118.8 * (temp - isaTempC));
+                    let daMeter = Math.round(daFt * 0.3048);
+
+                    let hint = "Tuning Normal";
+                    if (daMeter < 150) hint = "💡 Udara Padat! Tenaga Maksimal (Bisa Naik Spuyer)";
+                    else if (daMeter > 500) hint = "💡 Udara Tipis! Cenderung Basah (Turunkan Spuyer)";
+                    else hint = "💡 Udara Ideal/Standar untuk Jetting Karbu";
+
+                    currentWeather = { temp, humidity, pressure, da: daMeter, hint };
+
+                    document.getElementById('weatherTemp').innerText = `🌡️ ${temp}°C | 💧 ${humidity}% | ${pressure} hPa`;
+                    document.getElementById('daValue').innerText = `DA: ${daMeter} m`;
+                    document.getElementById('weatherHint').innerText = hint;
+
+                    document.getElementById('jettingDA').value = daMeter;
+                    document.getElementById('jettingTemp').value = temp;
+                    calcJetting();
+                }
+            } catch (err) {
+                document.getElementById('weatherTemp').innerText = "🌡️ Weather: Offline";
+            }
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        }
+
+        // --- DRAG STAGING & TIMING ---
+        function armSystemWithTree() {
+            let limit = parseInt(document.getElementById('gpsAccuracyLimit').value);
+            let requireGood = document.getElementById('requireGoodGpsToggle').checked;
+
+            if (requireGood && gpsAccuracy > limit) { 
+                alert(`⚠️ Sinyal GPS Kurang Akurat!\n\nAkurasi Saat Ini: ${gpsAccuracy}m\nTarget Syarat Akurasi: <= ${limit}m`); 
+                return; 
+            }
+
+            document.getElementById('treeBox').style.display = 'flex';
+            ['lightY1', 'lightY2', 'lightY3', 'lightGreen'].forEach(id => document.getElementById(id).classList.remove('active'));
+            document.getElementById('dragStatus').innerText = "STAGE";
+
+            setTimeout(() => { document.getElementById('lightY1').classList.add('active'); playBeep(520); }, 400);
+            setTimeout(() => { document.getElementById('lightY2').classList.add('active'); playBeep(520); }, 800);
+            setTimeout(() => { document.getElementById('lightY3').classList.add('active'); playBeep(520); }, 1200);
+            setTimeout(() => {
+                document.getElementById('lightGreen').classList.add('active');
+                playBeep(1040, 'sine', 0.35);
+                dragArmed = true;
+                greenLightTime = performance.now();
+                document.getElementById('dragStatus').innerText = "ARMED (GAS!)";
+            }, 1600);
+        }
+
+        function startDragTimer() {
+            dragRunning = true; dragArmed = false;
+            dragStartTime = performance.now();
+            reactionTime = ((dragStartTime - greenLightTime) / 1000).toFixed(3);
+            document.getElementById('resRT').innerText = reactionTime + " s";
+
+            startLat = currentLat; startLon = currentLon;
+            speedDataLog = []; time60ft = null; time201m = null; targetFinishTime = null; peakGForce = 0;
+            document.getElementById('dragStatus').innerText = "RACING!";
+
+            timerInterval = setInterval(() => {
+                let elapsed = (performance.now() - dragStartTime) / 1000;
+                let m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                let s = Math.floor(elapsed % 60).toString().padStart(2, '0');
+                let ms = Math.floor((elapsed % 1) * 100).toString().padStart(2, '0');
+                document.getElementById('dragTimer').innerText = `${m}:${s}.${ms}`;
+            }, 30);
+        }
+
+        function stopDragTimer() {
+            clearInterval(timerInterval); dragRunning = false;
+            document.getElementById('dragStatus').innerText = "FINISH!";
+            playBeep(880, 'triangle', 0.4);
+            speakResults();
+            renderChart();
+            runDynoAnalysis();
+            showTimeSlip();
+        }
+
+        function speakResults() {
+            if (!document.getElementById('voiceAnnounceToggle').checked) return;
+            if (!('speechSynthesis' in window)) return;
+
+            window.speechSynthesis.cancel();
+            let targetDist = document.getElementById('targetDistance').value;
+            let spdObj = getFormattedSpeed(topSpeedRecord);
+            let timeStr = targetFinishTime ? targetFinishTime.toFixed(2) : "0";
+
+            let speechText = `Finish! Waktu ${targetDist} meter, ${timeStr} detik. Kecepatan puncak, ${spdObj.val} kilometer per jam.`;
+            let utterance = new SpeechSynthesisUtterance(speechText);
+            utterance.lang = 'id-ID';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function resetDrag() {
+            clearInterval(timerInterval); dragRunning = false; dragArmed = false;
+            document.getElementById('dragTimer').innerText = "00:00.00";
+            document.getElementById('dragDistance').innerText = "0.0 m";
+            document.getElementById('dragStatus').innerText = "STANDBY";
+            document.getElementById('treeBox').style.display = 'none';
+            document.getElementById('chartPanel').style.display = 'none';
+        }
+
+        // --- VIRTUAL DYNO ALGORITHM ---
+        function runDynoAnalysis() {
+            let log = speedDataLog;
+            if (!log || log.length < 3) {
+                log = generateSampleSpeedLog();
+            }
+
+            let mass = parseFloat(document.getElementById('dynoWeight').value) || 130;
+            let cd = parseFloat(document.getElementById('dynoCd').value) || 0.60;
+            let eff = parseFloat(document.getElementById('dynoEff').value) || 0.88;
+            let frontalArea = 0.55;
+            let rho = 1.18;
+            let crr = 0.015;
+
+            let dynoPoints = [];
+            let peakWheelHP = 0;
+            let peakTorqueNm = 0;
+            let peakSpeedAtTorque = 0;
+
+            for (let i = 1; i < log.length; i++) {
+                let dt = log[i].time - log[i-1].time;
+                if (dt <= 0) continue;
+
+                let v1 = (log[i-1].rawSpeedKmh || log[i-1].speed) / 3.6;
+                let v2 = (log[i].rawSpeedKmh || log[i].speed) / 3.6;
+                let vAvg = (v1 + v2) / 2;
+                let speedKmh = vAvg * 3.6;
+
+                let accel = (v2 - v1) / dt;
+                if (accel < 0) accel = 0;
+
+                let fAccel = mass * accel;
+                let fDrag = 0.5 * cd * frontalArea * rho * Math.pow(vAvg, 2);
+                let fRR = crr * mass * 9.81;
+
+                let fTotal = fAccel + fDrag + fRR;
+                let powerWheelWatts = fTotal * vAvg;
+                let wheelHP = powerWheelWatts / 745.7;
+                let engineHP = wheelHP / eff;
+
+                let wheelRadius = 0.28;
+                let torqueNm = fTotal * wheelRadius;
+
+                if (wheelHP > peakWheelHP) peakWheelHP = wheelHP;
+                if (torqueNm > peakTorqueNm) {
+                    peakTorqueNm = torqueNm;
+                    peakSpeedAtTorque = speedKmh;
+                }
+
+                dynoPoints.push({
+                    speed: Math.round(speedKmh),
+                    wheelHP: parseFloat(wheelHP.toFixed(1)),
+                    engineHP: parseFloat(engineHP.toFixed(1)),
+                    torque: parseFloat(torqueNm.toFixed(1))
+                });
+            }
+
+            let peakEngineHP = peakWheelHP / eff;
+
+            document.getElementById('dynoPeakHP').innerHTML = `${peakWheelHP.toFixed(1)} <span class="unit">Wheel HP</span>`;
+            document.getElementById('dynoPeakEngineHP').innerText = `Est. Engine: ${peakEngineHP.toFixed(1)} HP`;
+            document.getElementById('dynoPeakTorque').innerHTML = `${peakTorqueNm.toFixed(1)} <span class="unit">Nm</span>`;
+            document.getElementById('dynoPeakSpeed').innerText = `pada ${Math.round(peakSpeedAtTorque)} km/h`;
+
+            renderDynoChart(dynoPoints);
+        }
+
+        function generateSampleSpeedLog() {
+            let sample = [];
+            for (let t = 0; t <= 12; t += 0.5) {
+                let spd = 120 * (1 - Math.exp(-0.35 * t));
+                sample.push({ time: t, speed: Math.round(spd), rawSpeedKmh: spd });
+            }
+            return sample;
+        }
+
+        function renderDynoChart(points) {
+            const ctx = document.getElementById('dynoChart').getContext('2d');
+            if (dynoChartInstance) dynoChartInstance.destroy();
+
+            dynoChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: points.map(p => p.speed + ' km/h'),
+                    datasets: [
+                        {
+                            label: 'Wheel HP',
+                            data: points.map(p => p.wheelHP),
+                            borderColor: '#00ff66',
+                            backgroundColor: 'rgba(0,255,102,0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Torque (Nm)',
+                            data: points.map(p => p.torque),
+                            borderColor: '#ffcc00',
+                            backgroundColor: 'transparent',
+                            borderDash: [5, 5],
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: { ticks: { color: '#888', font: { size: 9 } } },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'HP', color: '#00ff66', font: { size: 9 } },
+                            ticks: { color: '#00ff66' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Torque (Nm)', color: '#ffcc00', font: { size: 9 } },
+                            ticks: { color: '#ffcc00' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    },
+                    plugins: { legend: { labels: { color: '#ccc', font: { size: 9 } } } }
+                }
+            });
+        }
+
+        function loadRunToDyno() {
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            if (!history.length) return alert("Belum ada data riwayat test run!");
+            let latest = history[0];
+            if (latest.speedLog && latest.speedLog.length) {
+                speedDataLog = latest.speedLog;
+                runDynoAnalysis();
+                alert(`📊 Berhasil memuat data: ${latest.specMotor} (${latest.targetTime}s)`);
+            } else {
+                alert("Data run ini tidak memiliki log grafik kecepatan.");
+            }
+        }
+
+        // --- MECHANIC TOOLS CALCULATORS ---
+        function calcJetting() {
+            let da = parseFloat(document.getElementById('jettingDA').value) || 0;
+            let currentMJ = parseFloat(document.getElementById('jettingCurrentMJ').value) || 135;
+            let currentPJ = parseFloat(document.getElementById('jettingCurrentPJ').value) || 42;
+
+            let cf = Math.pow(1 - (0.0000225577 * da), 5.25588);
+            let recMJ = Math.round(currentMJ * cf);
+            let recPJ = Math.round(currentPJ * cf);
+
+            document.getElementById('resRecMJ').innerText = recMJ;
+            document.getElementById('resRecPJ').innerText = recPJ;
+
+            let diffMJ = recMJ - currentMJ;
+            let statusEl = document.getElementById('jettingStatus');
+            let adviceEl = document.getElementById('jettingAdvice');
+
+            if (diffMJ === 0) {
+                statusEl.innerText = "✅ Campuran Bensin: IDEAL & PAS";
+                statusEl.style.color = "#00ff66";
+                adviceEl.innerText = "Ukuran spuyer saat ini sudah optimal untuk kondisi cuaca/ketinggian lokasi ini.";
+            } else if (diffMJ < 0) {
+                statusEl.innerText = `⚠️ Campuran Bensin: TERLALU BASAH (RICH) ${diffMJ}`;
+                statusEl.style.color = "#ffcc00";
+                adviceEl.innerText = `Udara lebih tipis (DA ${da}m). Disarankan turunkan Main Jet dari ${currentMJ} ke ${recMJ} dan sesuaikan klip jarum skep (naikkan klip 1 strip).`;
+            } else {
+                statusEl.innerText = `⚠️ Campuran Bensin: TERLALU IRIT/KERING (LEAN) +${diffMJ}`;
+                statusEl.style.color = "#ff3344";
+                adviceEl.innerText = `Udara dingin/padat (DA ${da}m). Disarankan naikkan Main Jet dari ${currentMJ} ke ${recMJ} untuk mencegah mesin jebol/dry overheat.`;
+            }
+        }
+
+        function calcTransmission() {
+            let width = parseFloat(document.getElementById('tireWidth').value) || 90;
+            let ratio = parseFloat(document.getElementById('tireAspect').value) || 80;
+            let rim = parseFloat(document.getElementById('tireRim').value) || 17;
+
+            let tireDiamMm = (rim * 25.4) + (2 * (width * ratio / 100));
+            let tireCircumM = (Math.PI * tireDiamMm) / 1000;
+
+            let primary = parseFloat(document.getElementById('primaryRatio').value) || 3.21;
+            let front = parseFloat(document.getElementById('sprocketFront').value) || 14;
+            let rear = parseFloat(document.getElementById('sprocketRear').value) || 36;
+            let secondary = rear / front;
+
+            let maxRpm = parseFloat(document.getElementById('maxRpm').value) || 12000;
+            let totalGears = parseInt(document.getElementById('totalGears').value) || 6;
+
+            let gearRatios = [
+                parseFloat(document.getElementById('g1Ratio').value) || 3.00,
+                parseFloat(document.getElementById('g2Ratio').value) || 1.93,
+                parseFloat(document.getElementById('g3Ratio').value) || 1.43,
+                parseFloat(document.getElementById('g4Ratio').value) || 1.14,
+                parseFloat(document.getElementById('g5Ratio').value) || 0.96,
+                parseFloat(document.getElementById('g6Ratio').value) || 0.84
+            ];
+
+            let html = "";
+            for (let i = 0; i < totalGears; i++) {
+                let gRatio = gearRatios[i];
+                let totalRatio = primary * gRatio * secondary;
+                let topSpeedKmh = (maxRpm / totalRatio) * tireCircumM * (60 / 1000);
+
+                html += `<tr>
+                    <td style="color:#00ff66; font-weight:bold;">GIGI ${i+1}</td>
+                    <td>${gRatio.toFixed(2)}</td>
+                    <td>${totalRatio.toFixed(2)}</td>
+                    <td style="color:#00ffff; font-weight:bold;">${Math.round(topSpeedKmh)} km/h</td>
+                </tr>`;
+            }
+            document.getElementById('gearTableBody').innerHTML = html;
+        }
+
+        function calcCompression() {
+            let bore = parseFloat(document.getElementById('compBore').value) || 62.0;
+            let stroke = parseFloat(document.getElementById('compStroke').value) || 58.0;
+            let dome = parseFloat(document.getElementById('compDome').value) || 14.5;
+            let gasket = parseFloat(document.getElementById('compGasket').value) || 0.5;
+            let deck = parseFloat(document.getElementById('compDeck').value) || 0.3;
+            let abdc = parseFloat(document.getElementById('compCamAbdc').value) || 55;
+
+            let engineCC = (Math.PI / 4) * Math.pow(bore / 10, 2) * (stroke / 10);
+            let gasketVolCC = (Math.PI / 4) * Math.pow(bore / 10, 2) * (gasket / 10);
+            let deckVolCC = (Math.PI / 4) * Math.pow(bore / 10, 2) * (deck / 10);
+
+            let clearanceVol = dome + gasketVolCC + deckVolCC;
+            let scr = (engineCC + clearanceVol) / clearanceVol;
+
+            let abdcRad = (180 - abdc) * Math.PI / 180;
+            let effStroke = stroke * Math.sin(abdcRad / 2);
+            let effEngineCC = (Math.PI / 4) * Math.pow(bore / 10, 2) * (effStroke / 10);
+            let dcr = (effEngineCC + clearanceVol) / clearanceVol;
+
+            document.getElementById('resEngineCC').innerText = engineCC.toFixed(1) + " cc";
+            document.getElementById('resSCR').innerText = scr.toFixed(2) + " : 1";
+            document.getElementById('resDCR').innerText = dcr.toFixed(2) + " : 1";
+
+            let fuelEl = document.getElementById('resFuelFuel');
+            if (scr < 10.0) {
+                fuelEl.innerText = "Pertalite (RON 90)"; fuelEl.style.color = "#00ff66";
+            } else if (scr < 11.2) {
+                fuelEl.innerText = "Pertamax (RON 92)"; fuelEl.style.color = "#00ffff";
+            } else if (scr < 12.8) {
+                fuelEl.innerText = "Pertamax Turbo (RON 98)"; fuelEl.style.color = "#ffcc00";
+            } else {
+                fuelEl.innerText = "Racing Fuel / VP / Avgas / E85 (RON 100+)"; fuelEl.style.color = "#ff3344";
+            }
+        }
+
+        // --- TIME SLIP & LOGBOOK FUNCTIONS ---
+        function showTimeSlip() {
+            let weight = parseFloat(document.getElementById('totalWeight').value) || 130;
+            let targetDist = document.getElementById('targetDistance').value;
+            let spdObj = getFormattedSpeed(currentSpeedKmh);
+            let topSpeedMs = (topSpeedRecord || 1) / 3.6;
+            let estHP = Math.round((0.5 * weight * Math.pow(topSpeedMs, 2)) / (targetFinishTime * 745.7) * 2.5);
+
+            document.getElementById('slipDate').innerText = new Date().toLocaleString('id-ID');
+            document.getElementById('slipMotor').innerText = "Motor: " + (document.getElementById('specMotor').value || "Drag Motor");
+            document.getElementById('slipWeatherInfo').innerText = `Cuaca: ${currentWeather.temp}°C | DA: ${currentWeather.da}m`;
+            document.getElementById('slipRT').innerText = (reactionTime || "0.000") + "s";
+            document.getElementById('slip60ft').innerText = time60ft ? time60ft.toFixed(2) + "s" : "--";
+            document.getElementById('slip201m').innerText = time201m ? time201m.toFixed(2) + "s" : "--";
+            document.getElementById('slipTargetLabel').innerText = `${targetDist}m Time:`;
+            document.getElementById('slipTargetVal').innerText = targetFinishTime ? targetFinishTime.toFixed(2) + "s" : "--";
+            document.getElementById('slipTopSpeed').innerText = `${topSpeedRecord} ${spdObj.label}`;
+            document.getElementById('slipPeakG').innerText = peakGForce.toFixed(2) + " G";
+            document.getElementById('slipHP').innerText = estHP + " HP";
+            document.getElementById('slipModal').style.display = 'flex';
+        }
+
+        function downloadSlipImage() {
+            const card = document.getElementById('slipCard');
+            html2canvas(card, { backgroundColor: '#fdfae6', scale: 2 }).then(canvas => {
+                let link = document.createElement('a');
+                link.download = `TimeSlip-${Date.now()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+
+        function renderChart() {
+            document.getElementById('chartPanel').style.display = 'block';
+            const ctx = document.getElementById('speedChart').getContext('2d');
+            if (speedChartInstance) speedChartInstance.destroy();
+            speedChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: speedDataLog.map(d => d.time.toFixed(1) + 's'),
+                    datasets: [{ label: 'Kecepatan', data: speedDataLog.map(d => d.speed), borderColor: '#00ff66', fill: false }]
+                },
+                options: { plugins: { legend: { display: false } } }
+            });
+        }
+
+        function populateCompareDropdowns() {
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            let opts = history.map((item, idx) => `<option value="${idx}">${item.specMotor} (${item.targetTime}s @ ${item.targetDist}m)</option>`).join('');
+            document.getElementById('compareRunA').innerHTML = opts;
+            document.getElementById('compareRunB').innerHTML = opts;
+        }
+
+        function renderComparisonChart() {
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            let idxA = document.getElementById('compareRunA').value;
+            let idxB = document.getElementById('compareRunB').value;
+            if (!history[idxA] || !history[idxB]) return alert("Pilih 2 data riwayat tes!");
+
+            document.getElementById('compareChartPanel').style.display = 'block';
+            const ctx = document.getElementById('compareChart').getContext('2d');
+            if (compareChartInstance) compareChartInstance.destroy();
+
+            compareChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: history[idxA].speedLog ? history[idxA].speedLog.map(d => d.time.toFixed(1) + 's') : [],
+                    datasets: [
+                        {
+                            label: history[idxA].specMotor || 'Run A',
+                            data: history[idxA].speedLog ? history[idxA].speedLog.map(d => d.speed) : [],
+                            borderColor: '#00ff66',
+                            fill: false
+                        },
+                        {
+                            label: history[idxB].specMotor || 'Run B',
+                            data: history[idxB].speedLog ? history[idxB].speedLog.map(d => d.speed) : [],
+                            borderColor: '#00ffff',
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: '#ccc' } } },
+                    scales: {
+                        x: { ticks: { color: '#888' } },
+                        y: { ticks: { color: '#888' } }
+                    }
+                }
+            });
+        }
+
+        function loadSettings() {
+            let settings = JSON.parse(localStorage.getItem('racebox_settings') || '{}');
+            if (settings.speedUnit) document.getElementById('speedUnit').value = settings.speedUnit;
+            if (settings.voiceAnnounce !== undefined) document.getElementById('voiceAnnounceToggle').checked = settings.voiceAnnounce;
+            if (settings.soundVib !== undefined) document.getElementById('soundVibToggle').checked = settings.soundVib;
+            if (settings.requireGoodGps !== undefined) document.getElementById('requireGoodGpsToggle').checked = settings.requireGoodGps;
+            if (settings.gpsLimit) {
+                if ((settings.gpsLimit === "15" || settings.gpsLimit === "5" || settings.gpsLimit === "2") && !currentUser.isPro) {
+                    document.getElementById('gpsAccuracyLimit').value = "30";
+                } else {
+                    document.getElementById('gpsAccuracyLimit').value = settings.gpsLimit;
+                }
+            }
+            if (settings.totalWeight) document.getElementById('totalWeight').value = settings.totalWeight;
+        }
+
+        function saveSettings() {
+            let settings = {
+                speedUnit: document.getElementById('speedUnit').value,
+                voiceAnnounce: document.getElementById('voiceAnnounceToggle').checked,
+                soundVib: document.getElementById('soundVibToggle').checked,
+                requireGoodGps: document.getElementById('requireGoodGpsToggle').checked,
+                gpsLimit: document.getElementById('gpsAccuracyLimit').value,
+                totalWeight: document.getElementById('totalWeight').value
+            };
+            localStorage.setItem('racebox_settings', JSON.stringify(settings));
+        }
+
+        function handleAccuracyChange(el) {
+            let val = el.value;
+            if ((val === "15" || val === "5" || val === "2") && !currentUser.isPro) {
+                showPaywallModal("Batas Akurasi Tinggi (15m - 2m)");
+                el.value = "30";
+                saveSettings();
+                return;
+            }
+            saveSettings();
+        }
+
+        function getFormattedSpeed(spdKmh) {
+            let unit = document.getElementById('speedUnit') ? document.getElementById('speedUnit').value : 'kmh';
+            if (unit === 'mph') {
+                return { val: Math.round(spdKmh * 0.621371), label: 'mph' };
+            }
+            return { val: Math.round(spdKmh), label: 'km/h' };
+        }
+
+        function playBeep(freq = 520, type = 'sine', duration = 0.15) {
+            if (!document.getElementById('soundVibToggle').checked) return;
+            try {
+                let ctx = new (window.AudioContext || window.webkitAudioContext)();
+                let osc = ctx.createOscillator();
+                let gain = ctx.createGain();
+                osc.type = type;
+                osc.frequency.value = freq;
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + duration);
+                osc.stop(ctx.currentTime + duration);
+                if (navigator.vibrate) navigator.vibrate(100);
+            } catch (e) {}
+        }
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLockObj = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {}
+        }
+
+        function handleKeepAwakeToggle() {
+            if (document.getElementById('keepAwakeToggle').checked) {
+                requestWakeLock();
+            } else if (wakeLockObj) {
+                wakeLockObj.release().then(() => { wakeLockObj = null; });
+            }
+        }
+
+        function saveToLocalStorage() {
+            if (!targetFinishTime) return alert("Belum ada data test run untuk disimpan!");
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            let record = {
+                id: Date.now(),
+                date: new Date().toLocaleString('id-ID'),
+                specMotor: document.getElementById('specMotor').value || "Motor Standar",
+                specSettings: document.getElementById('specSettings').value || "-",
+                targetDist: document.getElementById('targetDistance').value,
+                targetTime: targetFinishTime ? targetFinishTime.toFixed(2) : "--",
+                topSpeed: topSpeedRecord,
+                rt: reactionTime,
+                t60ft: time60ft ? time60ft.toFixed(2) : "--",
+                t201m: time201m ? time201m.toFixed(2) : "--",
+                speedLog: speedDataLog
+            };
+            history.unshift(record);
+            localStorage.setItem('racebox_history', JSON.stringify(history));
+            alert("✅ Test run berhasil disimpan ke Logbook!");
+            loadHistoryFromLocalStorage();
+        }
+
+        function loadHistoryFromLocalStorage() {
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            let listEl = document.getElementById('historyList');
+            if (!listEl) return;
+            if (!history.length) {
+                listEl.innerHTML = `<div style="font-size:10px; color:#666; text-align:center; padding:10px;">Belum ada riwayat test run.</div>`;
+                return;
+            }
+            let html = "";
+            history.forEach((h, i) => {
+                html += `<div class="panel-box" style="margin-bottom:6px; background:#181818;">
+                    <div style="display:flex; justify-content:space-between; font-size:10px; color:#00ff66; font-weight:bold;">
+                        <span>${h.specMotor}</span>
+                        <span>${h.targetTime}s @ ${h.targetDist}m</span>
+                    </div>
+                    <div style="font-size:9px; color:#888; margin-top:2px;">📅 ${h.date} | Setelan: ${h.specSettings}</div>
+                    <div style="font-size:9px; color:#aaa; margin-top:2px;">RT: ${h.rt}s | 60ft: ${h.t60ft}s | 201m: ${h.t201m}s | Top Speed: ${h.topSpeed} km/h</div>
+                </div>`;
+            });
+            listEl.innerHTML = html;
+        }
+
+        function exportCSV() {
+            let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+            if (!history.length) return alert("Tidak ada data untuk diekspor!");
+            let csv = "ID,Tanggal,Motor,Setelan,TargetJarak,WaktuTarget,TopSpeed,RT,60ft,201m\n";
+            history.forEach(h => {
+                csv += `"${h.id}","${h.date}","${h.specMotor}","${h.specSettings}","${h.targetDist}","${h.targetTime}","${h.topSpeed}","${h.rt}","${h.t60ft}","${h.t201m}"\n`;
+            });
+            let blob = new Blob([csv], { type: 'text/csv' });
+            let url = URL.createObjectURL(blob);
+            let a = document.createElement('a');
+            a.href = url;
+            a.download = `RaceBox_Logbook_${Date.now()}.csv`;
+            a.click();
+        }
+
+        function importCSV(e) {
+            let file = e.target.files[0];
+            if (!file) return;
+            let reader = new FileReader();
+            reader.onload = function(evt) {
+                let lines = evt.target.result.split('\n');
+                let history = JSON.parse(localStorage.getItem('racebox_history') || '[]');
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    let cols = lines[i].split(',').map(c => c.replace(/"/g, ''));
+                    if (cols.length >= 10) {
+                        history.push({
+                            id: cols[0], date: cols[1], specMotor: cols[2], specSettings: cols[3],
+                            targetDist: cols[4], targetTime: cols[5], topSpeed: cols[6], rt: cols[7],
+                            t60ft: cols[8], t201m: cols[9], speedLog: []
+                        });
+                    }
+                }
+                localStorage.setItem('racebox_history', JSON.stringify(history));
+                alert("✅ Data CSV berhasil diimport!");
+                loadHistoryFromLocalStorage();
+            };
+            reader.readAsText(file);
+        }
+
+        function clearAllDataLogger() {
+            if (confirm("⚠️ Hapus semua riwayat test run?")) {
+                localStorage.removeItem('racebox_history');
+                loadHistoryFromLocalStorage();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# Abaikan folder instalasi library
+node_modules/
+
+# Abaikan file kuncian dan konfigurasi lokal
+.env
+.env.local
+.vercel
+.DS_Store

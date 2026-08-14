@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Dashboard - Kontrol Pengguna</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans">
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-900 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold tracking-wide">⚙️ Admin Control Panel</h1>
+        <span class="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-semibold">Live Mode</span>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 gap-8">
+        
+        <!-- SECTION 1: KONFIRMASI PEMBAYARAN -->
+        <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                💳 Antrean Konfirmasi Pembayaran
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-xs">
+                        <tr>
+                            <th class="p-3">Pengguna</th>
+                            <th class="p-3">Paket</th>
+                            <th class="p-3">Bukti Transfer</th>
+                            <th class="p-3">Tanggal</th>
+                            <th class="p-3 text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="payment-table-body" class="divide-y divide-slate-100">
+                        <tr>
+                            <td colspan="5" class="p-4 text-center text-slate-400">Memuat data pembayaran...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- SECTION 2: MANAGEMENT DATA PENGGUNA -->
+        <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold flex items-center gap-2">
+                    👥 Data Seluruh Pengguna
+                </h2>
+                <input type="text" id="search-user" placeholder="Cari nama/email..." class="border border-slate-300 px-3 py-1.5 rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-xs">
+                        <tr>
+                            <th class="p-3">Nama</th>
+                            <th class="p-3">Email</th>
+                            <th class="p-3">Status</th>
+                            <th class="p-3">Masa Berlaku</th>
+                            <th class="p-3 text-center">Aksi Manual</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-table-body" class="divide-y divide-slate-100">
+                        <tr>
+                            <td colspan="5" class="p-4 text-center text-slate-400">Memuat data pengguna...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- JS Logic integration -->
+    <script>
+        const API_BASE = 'http://localhost:5000/api/admin';
+        // Simpan JWT admin di localStorage saat login
+        const TOKEN = localStorage.getItem('adminToken') || '';
+
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${TOKEN}`
+        };
+
+        // 1. Fetch Pending Payments
+        async function loadPendingPayments() {
+            try {
+                const res = await fetch(`${API_BASE}/payments/pending`, { headers });
+                const json = await res.json();
+                const tbody = document.getElementById('payment-table-body');
+                tbody.innerHTML = '';
+
+                if(!json.data || json.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Tidak ada antrean pembayaran.</td></tr>';
+                    return;
+                }
+
+                json.data.forEach(item => {
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-3 font-semibold">${item.userId?.nama || 'N/A'}<br><span class="text-xs text-slate-400 font-normal">${item.userId?.email}</span></td>
+                            <td class="p-3"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-semibold">${item.paketDipilih}</span></td>
+                            <td class="p-3">
+                                <a href="http://localhost:5000${item.buktiPembayaran}" target="_blank" class="text-blue-600 underline text-xs">Lihat Bukti</a>
+                            </td>
+                            <td class="p-3 text-xs text-slate-500">${new Date(item.createdAt).toLocaleDateString('id-ID')}</td>
+                            <td class="p-3 text-center space-x-2">
+                                <button onclick="approvePayment('${item._id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-md font-medium">Setujui</button>
+                                <button onclick="rejectPayment('${item._id}')" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-3 py-1.5 rounded-md font-medium">Tolak</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        // 2. Fetch Users Data
+        async function loadUsers() {
+            try {
+                const res = await fetch(`${API_BASE}/users`, { headers });
+                const json = await res.json();
+                const tbody = document.getElementById('user-table-body');
+                tbody.innerHTML = '';
+
+                json.data.forEach(user => {
+                    const isPro = user.statusAkun === 'Pro';
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-3 font-medium">${user.nama}</td>
+                            <td class="p-3 text-slate-500">${user.email}</td>
+                            <td class="p-3">
+                                <span class="${isPro ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'} px-2.5 py-0.5 rounded-full text-xs font-bold">
+                                    ${user.statusAkun}
+                                </span>
+                            </td>
+                            <td class="p-3 text-xs text-slate-500">${user.berlakuHingga ? new Date(user.berlakuHingga).toLocaleDateString('id-ID') : '-'}</td>
+                            <td class="p-3 text-center">
+                                <button onclick="manualUpgrade('${user._id}')" class="border border-slate-300 hover:bg-slate-100 text-xs px-2.5 py-1 rounded">Edit Pro</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        // Action Handlers
+        async function approvePayment(id) {
+            if(!confirm("Setujui pembayaran ini dan jadikan akun Pro?")) return;
+            const res = await fetch(`${API_BASE}/payments/${id}/approve`, { method: 'POST', headers });
+            if(res.ok) { alert("Berhasil disetujui!"); loadPendingPayments(); loadUsers(); }
+        }
+
+        async function rejectPayment(id) {
+            const alasan = prompt("Masukkan alasan penolakan:");
+            if(!alasan) return;
+            const res = await fetch(`${API_BASE}/payments/${id}/reject`, { 
+                method: 'POST', 
+                headers, 
+                body: JSON.stringify({ catatanAdmin: alasan }) 
+            });
+            if(res.ok) { alert("Pembayaran ditolak."); loadPendingPayments(); }
+        }
+
+        async function manualUpgrade(userId) {
+            const paket = prompt("Nama Paket (misal: Pro Bulanan):", "Pro Bulanan");
+            const durasi = prompt("Durasi dalam hari:", "30");
+            if(!paket || !durasi) return;
+
+            const res = await fetch(`${API_BASE}/users/${userId}/upgrade`, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ paketPro: paket, durasiHari: parseInt(durasi) })
+            });
+            if(res.ok) { alert("Status user diperbarui!"); loadUsers(); }
+        }
+
+        // Initial Load
+        loadPendingPayments();
+        loadUsers();
+    </script>
+</body>
+</html>
