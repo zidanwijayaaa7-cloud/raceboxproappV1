@@ -74,7 +74,7 @@
 
     <!-- JS Logic integration -->
     <script>
-        const API_BASE = 'http://localhost:5000/api/admin';
+        const API_BASE = '/api/admin';
         // Simpan JWT admin di localStorage saat login
         const TOKEN = localStorage.getItem('adminToken') || '';
 
@@ -102,7 +102,7 @@
                             <td class="p-3 font-semibold">${item.userId?.nama || 'N/A'}<br><span class="text-xs text-slate-400 font-normal">${item.userId?.email}</span></td>
                             <td class="p-3"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-semibold">${item.paketDipilih}</span></td>
                             <td class="p-3">
-                                <a href="http://localhost:5000${item.buktiPembayaran}" target="_blank" class="text-blue-600 underline text-xs">Lihat Bukti</a>
+                                <a href="${item.buktiPembayaran}" target="_blank" class="text-blue-600 underline text-xs">Lihat Bukti</a>
                             </td>
                             <td class="p-3 text-xs text-slate-500">${new Date(item.createdAt).toLocaleDateString('id-ID')}</td>
                             <td class="p-3 text-center space-x-2">
