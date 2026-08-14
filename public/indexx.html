@@ -73,7 +73,6 @@
     </main>
 
     <!-- JS Logic integration -->
-    <!-- JS Logic integration -->
     <script>
         const API_BASE = '/api/admin';
         // Simpan JWT admin di localStorage saat login
@@ -106,7 +105,7 @@
                             <td class="p-3 font-semibold">${item.userId?.nama || 'N/A'}<br><span class="text-xs text-slate-400 font-normal">${item.userId?.email || ''}</span></td>
                             <td class="p-3"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-semibold">${item.paketDipilih || '-'}</span></td>
                             <td class="p-3">
-                                <a href="http://localhost:5000${item.buktiPembayaran}" target="_blank" class="text-blue-600 underline text-xs">Lihat Bukti</a>
+                                <a href="${item.buktiPembayaran}" target="_blank" class="text-blue-600 underline text-xs">Lihat Bukti</a>
                             </td>
                             <td class="p-3 text-xs text-slate-500">${item.createdAt ? new Date(item.createdAt).toLocaleDateString('id-ID') : '-'}</td>
                             <td class="p-3 text-center space-x-2">
@@ -122,27 +121,40 @@
             }
         }
 
-        // 2. Fetch Users Data
+        // 2. Fetch Users Data (TERBARU)
         async function loadUsers() {
             try {
-                const res = await fetch(`${API_BASE}/users`, { headers });
-                const json = await res.json();
+                // Menggunakan fetch dengan API_BASE dan headers agar otorisasi token tetap berjalan
+                const response = await fetch(`${API_BASE}/users`, { headers });
+                let userData = await response.json();
+                
                 const tbody = document.getElementById('user-table-body');
                 tbody.innerHTML = '';
 
-                // PERBAIKAN: Menghindari error "forEach is not a function" jika data kosong
-                const userData = json.data || json || [];
+                // Tambahkan blok validasi ini:
+                if (!response.ok) {
+                    throw new Error(userData.message || "Gagal mengambil data dari server");
+                }
+
+                // Menyesuaikan jika backend membungkus data di dalam objek { data: [...] }
+                if (userData.data) {
+                    userData = userData.data;
+                }
+
+                if (!Array.isArray(userData)) {
+                    throw new Error("Format data tidak valid, bukan array.");
+                }
 
                 if(userData.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Belum ada data pengguna.</td></tr>';
                     return;
                 }
 
+                // Baru lakukan forEach jika valid
                 userData.forEach(user => {
                     const isPro = user.statusAkun === 'Pro';
                     const isDitolak = user.statusAkun === 'Ditolak'; 
                     
-                    // PERBAIKAN: Menambahkan logic warna merah untuk "Ditolak" dan memunculkan text alasannya
                     const statusClass = isPro ? 'bg-emerald-100 text-emerald-700' : isDitolak ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600';
                     const alasanText = (isDitolak && (user.catatanAdmin || user.alasanPenolakan)) ? `<div class="text-[10px] text-rose-500 mt-1 font-medium">Alasan: ${user.catatanAdmin || user.alasanPenolakan}</div>` : '';
 
@@ -163,9 +175,14 @@
                         </tr>
                     `;
                 });
-            } catch (err) { 
-                console.error("Gagal memuat pengguna:", err); 
-                document.getElementById('user-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-rose-500">Gagal memuat data pengguna.</td></tr>';
+
+            } catch (error) {
+                console.error("Error loadUsers:", error);
+                alert("Gagal memuat data pengguna: " + error.message);
+                const tbody = document.getElementById('user-table-body');
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-rose-500">Gagal memuat data: ${error.message}</td></tr>`;
+                }
             }
         }
 
@@ -194,7 +211,7 @@
                 if(res.ok) { 
                     alert("Pembayaran ditolak."); 
                     loadPendingPayments(); 
-                    loadUsers(); // PERBAIKAN: Refresh tabel bawah agar alasan penolakan langsung muncul
+                    loadUsers(); // Refresh tabel bawah
                 }
             } catch(err) { console.error(err); }
         }
