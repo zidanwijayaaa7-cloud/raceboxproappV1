@@ -130,7 +130,7 @@
                 💬<span>WA Dev</span>
             </a>
 
-            <!-- TOMBOL ADMIN BARU (TAMBAHKAN KODE INI) -->
+            <!-- TOMBOL ADMIN BARU -->
             <div class="nav-item" style="border-color: #ff3344; color: #ff3344; cursor: pointer;" onclick="showAdminLogin()">
                 🛡️<span>Admin</span>
             </div>
@@ -755,7 +755,7 @@
     </div>
 
     <script>
-        // NOMOR WHATSAPP DEVELOPER (GANTI DENGAN NOMOR WA ASLI ANDA)
+        // NOMOR WHATSAPP DEVELOPER
         const DEV_WA_NUMBER = "6281910461290";
 
         // Status Pengguna & Autentikasi
@@ -767,6 +767,52 @@
             proPackage: null,
             paymentPending: false
         };
+
+        // FUNGSI PERBAIKAN: Sinkronisasi Status Akun dari Server secara Real-time
+        async function syncUserDataFromServer() {
+            if (!currentUser || !currentUser.isLoggedIn) return;
+            let userId = currentUser.id || currentUser._id;
+            if (!userId && !currentUser.email) return;
+
+            try {
+                let res = null;
+                if (userId) {
+                    res = await fetch(`/api/user/status?id=${userId}`);
+                    if (!res || !res.ok) {
+                        res = await fetch(`/api/user/profile?id=${userId}`);
+                    }
+                }
+                if (!res || !res.ok) {
+                    res = await fetch('/api/user/check-status', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: userId, email: currentUser.email })
+                    });
+                }
+
+                if (res && res.ok) {
+                    let data = await res.json();
+                    let u = data.user || data;
+                    if (u) {
+                        let newProStatus = (u.statusAkun === 'Pro' || u.statusAkun === 'pro' || u.isPro === true);
+                        let hasChanged = (currentUser.isPro !== newProStatus) || (currentUser.paymentPending !== u.paymentPending);
+
+                        currentUser.isPro = newProStatus;
+                        if (u.statusAkun) currentUser.statusAkun = u.statusAkun;
+                        if (u.paketPro !== undefined) currentUser.paketPro = u.paketPro;
+                        if (u.paymentPending !== undefined) currentUser.paymentPending = u.paymentPending;
+
+                        localStorage.setItem('racebox_current_user', JSON.stringify(currentUser));
+
+                        if (hasChanged) {
+                            updateAuthUI();
+                        }
+                    }
+                }
+            } catch (err) {
+                // Abaikan jika server offline / kendala koneksi
+            }
+        }
 
         // Register Pengguna ke Database Server
         async function handleRegister() {
@@ -815,7 +861,7 @@
                         id: data.user._id,
                         email: data.user.email,
                         name: data.user.nama,
-                        isPro: data.user.statusAkun === 'Pro',
+                        isPro: data.user.statusAkun === 'Pro' || data.user.statusAkun === 'pro' || data.user.isPro === true,
                         paketPro: data.user.paketPro
                     };
                     localStorage.setItem('racebox_current_user', JSON.stringify(currentUser));
@@ -939,12 +985,17 @@
         let currentWeather = { temp: 30, humidity: 70, pressure: 1010, da: 100, hint: 'Belum ada data' };
         let weatherFetched = false;
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             let savedUser = localStorage.getItem('racebox_current_user');
             if (savedUser) {
                 currentUser = JSON.parse(savedUser);
             }
             updateAuthUI();
+            
+            // Lakukan sinkronisasi awal saat aplikasi dibuka & set interval berkala (10s)
+            await syncUserDataFromServer();
+            setInterval(syncUserDataFromServer, 10000);
+
             loadSettings();
             loadHistoryFromLocalStorage();
             initSensors();
@@ -955,7 +1006,12 @@
         });
 
         // --- TAB SWITCHING LOGIC ---
-        function switchTab(tabId, el) {
+        async function switchTab(tabId, el) {
+            // Cek sinkronisasi terbaru dari server saat berpindah tab
+            if (currentUser && currentUser.isLoggedIn) {
+                await syncUserDataFromServer();
+            }
+
             const proTabs = ['dyno', 'tools', 'compare'];
 
             if (proTabs.includes(tabId) && !currentUser.isPro) {
@@ -1779,7 +1835,6 @@
                     let field = '';
                     let inQuotes = false;
 
-                    // Parser CSV sederhana yang tetap aman untuk koma di dalam tanda kutip.
                     for (let i = 0; i < text.length; i++) {
                         const char = text[i];
                         const next = text[i + 1];
@@ -1825,7 +1880,6 @@
 
                     let importedCount = 0;
 
-                    // Baris pertama adalah header.
                     for (let i = 1; i < rows.length; i++) {
                         const cols = rows[i];
                         if (cols.length < 10) continue;
@@ -1859,7 +1913,6 @@
                     console.error('Import CSV error:', error);
                     alert("❌ Gagal mengimport CSV. Pastikan format file berasal dari Export RaceBox Pro.");
                 } finally {
-                    // Supaya file yang sama bisa dipilih/import ulang.
                     e.target.value = '';
                 }
             };
@@ -1881,9 +1934,7 @@
 
         // --- ADMIN / DEVELOPER DASHBOARD LOGIC ---
         function showAdminLogin() {
-            // Tampilkan pop-up modal
             document.getElementById('adminModal').style.display = 'flex';
-            // Kosongkan form input
             document.getElementById('adminUsername').value = '';
             document.getElementById('adminPassword').value = '';
         }
@@ -1892,7 +1943,6 @@
             let user = document.getElementById('adminUsername').value.trim();
             let pass = document.getElementById('adminPassword').value.trim();
 
-            // GANTI SESUAI KEBUTUHAN ANDA DI SINI
             const ADMIN_USER = "develop";
             const ADMIN_PASS = "jidanautotools";
 
@@ -1900,7 +1950,6 @@
                 alert("✅ Autentikasi Berhasil! Mengalihkan ke Dashboard Admin...");
                 document.getElementById('adminModal').style.display = 'none';
                 
-                // Arahkan otomatis ke halaman /admin
                 window.location.href = "/admin"; 
             } else {
                 alert("❌ Akses Ditolak! Username atau Password salah.");
